@@ -6,15 +6,104 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-03-20
+
 ### Added
-- **`/gsd:profile-user` command** — Developer behavioral profiling from session analysis across 8 dimensions (communication, decisions, debugging, UX, vendor choices, frustrations, learning style, explanation depth). Generates `USER-PROFILE.md`, `/gsd:dev-preferences`, and `CLAUDE.md` profile section for personalized responses. Includes `--questionnaire` fallback and `--refresh` for re-analysis
-- **Execution hardening** — Three quality improvements to the execution pipeline:
-  - Pre-wave dependency check in `execute-phase`: verifies key-links from prior wave artifacts before spawning next wave
-  - Cross-Plan Data Contracts (Dimension 9) in plan-checker: detects incompatible transformations between plans sharing data pipelines
-  - Export-level spot check in `verify-phase`: catches dead stores that exist in wired files but are never called
+- **Advisor mode** — Research-backed discussion with parallel agents evaluating gray areas before you decide
+- **Multi-repo workspace support** — Auto-detection and project root resolution for monorepos and multi-repo setups
+- **Cursor CLI runtime support** — Full installation and command conversion for Cursor
+- **`/gsd:fast` command** — Trivial inline tasks that skip planning entirely
+- **`/gsd:review` command** — Cross-AI peer review of current phase or branch
+- **`/gsd:plant-seed` command** — Backlog parking lot for ideas and persistent context threads
+- **`/gsd:pr-branch` command** — Clean PR branches filtering `.planning/` commits
+- **`/gsd:audit-uat` command** — Verification debt tracking across phases
+- **`--analyze` flag for discuss-phase** — Trade-off analysis during discussion
+- **`research_before_questions` config option** — Run research before discussion questions instead of after
+- **Ticket-based phase identifiers** — Support for team workflows using ticket IDs
+- **Worktree-aware `.planning/` resolution** — File locking for safe parallel access
+- **Discussion audit trail** — Auto-generated `DISCUSSION-LOG.md` during discuss-phase
+- **Context window size awareness** — Optimized behavior for 1M+ context models
+- **Exa and Firecrawl MCP support** — Additional research tools for research agents
+- **Runtime State Inventory** — Researcher capability for rename/refactor phases
+- **Quick-task branch support** — Isolated branches for quick-mode tasks
+- **Decision IDs** — Discuss-to-plan traceability via decision identifiers
+- **Stub detection** — Verifier and executor detect incomplete implementations
+- **Security hardening** — Centralized `security.cjs` module with path traversal prevention, prompt injection detection/sanitization, safe JSON parsing, field name validation, and shell argument validation. PreToolUse `gsd-prompt-guard` hook scans writes to `.planning/` for injection patterns
+
+### Changed
+- CI matrix updated to Node 20, 22, 24 — dropped EOL Node 18
+- GitHub Actions upgraded for Node 24 compatibility
+- Consolidated `planningPaths()` helper across 4 modules — eliminated 34 inline path constructions
+- Deduplicated code, annotated empty catches, consolidated STATE.md field helpers
+- Materialize full config on new-project initialization
+- Workflow enforcement guidance embedded in generated CLAUDE.md
 
 ### Fixed
-- **Requirements `mark-complete` is now idempotent** — Re-marking already-completed requirements returns `already_complete` instead of `not_found` (#948)
+- Path traversal in `readTextArgOrFile` — arguments validate paths resolve within project directory
+- Codex config.toml corruption from non-boolean `[features]` keys
+- Stale hooks check filtered to gsd-prefixed files only
+- Universal agent name replacement for non-Claude runtimes
+- `--no-verify` support for parallel executor commits
+- ROADMAP fallback for plan-phase, execute-phase, and verify-work
+- Copilot sequential fallback and spot-check completion detection
+- `text_mode` config for Claude Code remote session compatibility
+- Cursor: preserve slash-prefixed commands and unquoted skill names
+- Semver 3+ segment parsing and CRLF frontmatter corruption recovery
+- STATE.md parsing fixes (compound Plan field, progress tables, lifecycle extraction)
+- Windows HOME sandboxing for tests
+- Hook manifest tracking for local patch detection
+- Cross-platform code detection and STATE.md file locking
+- Auto-detect `commit_docs` from gitignore in `loadConfig`
+- Context monitor hook matcher and timeout
+- Codex EOL preservation when enabling hooks
+- macOS `/var` symlink resolution in path validation
+
+## [1.26.0] - 2026-03-18
+
+### Added
+- **Developer profiling pipeline** — `/gsd:profile-user` analyzes Claude Code session history to build behavioral profiles across 8 dimensions (communication, decisions, debugging, UX, vendor choices, frustrations, learning style, explanation depth). Generates `USER-PROFILE.md`, `/gsd:dev-preferences`, and `CLAUDE.md` profile section. Includes `--questionnaire` fallback and `--refresh` for re-analysis (#1084)
+- **`/gsd:ship` command** — PR creation from verified phase work. Auto-generates rich PR body from planning artifacts, pushes branch, creates PR via `gh`, and updates STATE.md (#829)
+- **`/gsd:next` command** — Automatic workflow advancement to the next logical step (#927)
+- **Cross-phase regression gate** — Execute-phase runs prior phases' test suites after execution, catching regressions before they compound (#945)
+- **Requirements coverage gate** — Plan-phase verifies all phase requirements are covered by at least one plan before proceeding (#984)
+- **Structured session handoff artifact** — `/gsd:pause-work` writes `.planning/HANDOFF.json` for machine-readable cross-session continuity (#940)
+- **WAITING.json signal file** — Machine-readable signal for decision points requiring user input (#1034)
+- **Interactive executor mode** — Pair-programming style execution with step-by-step user involvement (#963)
+- **MCP tool awareness** — GSD subagents can discover and use MCP server tools (#973)
+- **Codex hooks support** — SessionStart hook support for Codex runtime (#1020)
+- **Model alias-to-full-ID resolution** — Task API compatibility for model alias strings (#991)
+- **Execution hardening** — Pre-wave dependency checks, cross-plan data contracts, and export-level spot checks (#1082)
+- **Markdown normalization** — Generated markdown conforms to markdownlint standards (#1112)
+- **`/gsd:audit-uat` command** — Cross-phase audit of all outstanding UAT and verification items. Scans every phase for pending, skipped, blocked, and human_needed items. Cross-references against codebase to detect stale documentation. Produces prioritized human test plan grouped by testability
+- **Verification debt tracking** — Five structural improvements to prevent silent loss of UAT/verification items when projects advance:
+  - Cross-phase health check in `/gsd:progress` (Step 1.6) surfaces outstanding items from ALL prior phases
+  - `status: partial` in UAT files distinguishes incomplete testing from completed sessions
+  - `result: blocked` with `blocked_by` tag for tests blocked by external dependencies (server, device, build, third-party)
+  - `human_needed` verification items now persist as HUMAN-UAT.md files (trackable across sessions)
+  - Phase completion and transition warnings surface verification debt non-blockingly
+- **Advisor mode for discuss-phase** — Spawns parallel research agents during `/gsd:discuss-phase` to evaluate gray areas before user decides. Returns structured comparison tables calibrated to user's vendor philosophy. Activates only when `USER-PROFILE.md` exists (#1211)
+
+### Changed
+- Test suite consolidated: runtime converters deduplicated, helpers standardized (#1169)
+- Added test coverage for model-profiles, templates, profile-pipeline, profile-output (#1170)
+- Documented `inherit` profile for non-Anthropic providers (#1036)
+
+### Fixed
+- Agent suggests non-existent `/gsd:transition` — replaced with real commands (#1081, #1100)
+- PROJECT.md drift and phase completion counter accuracy (#956)
+- Copilot executor stuck issue — runtime compatibility fallback added (#1128)
+- Explicit agent type listings prevent fallback after `/clear` (#949)
+- Nested Skill calls breaking AskUserQuestion (#1009)
+- Negative-heuristic `stripShippedMilestones` replaced with positive milestone lookup (#1145)
+- Hook version tracking, stale hook detection, stdin timeout, session-report command (#1153, #1157, #1161, #1162)
+- Hook build script syntax validation (#1165)
+- Verification examples use `fetch()` instead of `curl` for Windows compatibility (#899)
+- Sequential fallback for `map-codebase` on runtimes without Task tool (#1174)
+- Zsh word-splitting fix for RUNTIME_DIRS arrays (#1173)
+- CRLF frontmatter parsing, duplicate cwd crash, STATE.md phase transitions (#1105)
+- Requirements `mark-complete` made idempotent (#948)
+- Profile template paths, field names, and evidence key corrections (#1095)
+- Duplicate variable declaration removed (#1101)
 
 ## [1.25.0] - 2026-03-16
 
@@ -1536,7 +1625,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - YOLO mode for autonomous execution
 - Interactive mode with checkpoints
 
-[Unreleased]: https://github.com/glittercowboy/get-shit-done/compare/v1.25.0...HEAD
+[Unreleased]: https://github.com/glittercowboy/get-shit-done/compare/v1.27.0...HEAD
+[1.27.0]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.27.0
+[1.26.0]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.26.0
 [1.25.0]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.25.0
 [1.24.0]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.24.0
 [1.23.0]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.23.0

@@ -3,16 +3,16 @@
 </purpose>
 
 <required_reading>
-在开始之前，阅读调用提示符的 execution_context 引用的所有文件。
+在开始之前，阅读调用提示的 execution_context 引用的所有文件。
 </required_reading>
 
 <process>
 
 <step name="gather_stats">
-收集项目统计信息：
+获取项目统计信息：
 
 ```bash
-STATS=$(node "$GSD_TOOLS" stats json)
+STATS=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" stats json)
 if [[ "$STATS" == @file:* ]]; then STATS=$(cat "${STATS#@file:}"); fi
 ```
 
@@ -20,10 +20,10 @@ if [[ "$STATS" == @file:* ]]; then STATS=$(cat "${STATS#@file:}"); fi
 </step>
 
 <step name="present_stats">
-使用此格式向用户展示：
+按照此格式向用户展示：
 
 ```
-# 📊 项目统计 — {milestone_version} {milestone_name}
+# 📊 项目统计信息 — {milestone_version} {milestone_name}
 
 ## 进度
 [████████░░] X/Y 阶段 (Z%)
@@ -41,20 +41,20 @@ X/Y 计划已完成 (Z%)
 
 ## Git
 - **提交数：** N
-- **启动时间：** YYYY-MM-DD
+- **开始日期：** YYYY-MM-DD
 - **最后活动：** YYYY-MM-DD
 
 ## 时间线
-- **项目时长：** N 天
+- **项目历时：** N 天
 ```
 
-如果不存在 `.planning/` 目录，请告知用户先运行 `/gsd:new-project`。
+如果 `.planning/` 目录不存在，告知用户先运行 `/gsd:new-project`。
 </step>
 
 </process>
 
 <success_criteria>
-- [ ] 已从项目状态中收集统计信息
+- [ ] 已从项目状态中获取统计信息
 - [ ] 结果格式清晰
 - [ ] 已向用户显示
 </success_criteria>

@@ -1,6 +1,6 @@
 {
   "name": "get-shit-done-dh",
-  "version": "1.0.0",
+  "version": "1.27.0",
   "description": "A meta-prompting, context engineering and spec-driven development system for Claude Code, OpenCode, Gemini and Codex by TÂCHES.",
   "bin": {
     "get-shit-done-dh": "bin/install.js"
@@ -37,7 +37,7 @@
     "url": "https://github.com/glittercowboy/get-shit-done/issues"
   },
   "engines": {
-    "node": ">=16.7.0"
+    "node": ">=20.0.0"
   },
   "devDependencies": {
     "c8": "^11.0.0",

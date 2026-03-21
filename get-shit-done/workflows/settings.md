@@ -1,15 +1,15 @@
 <purpose>
-Interactive configuration of GSD workflow agents (research, plan_check, verifier) and model profile selection via multi-question prompt. Updates .planning/config.json with user preferences. Optionally saves settings as global defaults (~/.gsd/defaults.json) for future projects.
+通过多问题提示，交互式配置 GSD 工作流智能体（research、plan_check、verifier）和模型配置选择。更新 .planning/config.json 以反映用户偏好。可选地将设置保存为全局默认值 (~/.gsd/defaults.json)，以便用于未来的项目。
 </purpose>
 
 <required_reading>
-Read all files referenced by the invoking prompt's execution_context before starting.
+在开始之前，阅读调用提示的 execution_context 中引用的所有文件。
 </required_reading>
 
 <process>
 
 <step name="ensure_and_load_config">
-Ensure config exists and load current state:
+确保配置存在并加载当前状态：
 
 ```bash
 node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" config-ensure-section
@@ -17,7 +17,7 @@ INIT=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" state load)
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 ```
 
-Creates `.planning/config.json` with defaults if missing and loads current config values.
+如果缺失，则创建带有默认值的 `.planning/config.json` 并加载当前配置值。
 </step>
 
 <step name="read_current">
@@ -25,115 +25,124 @@ Creates `.planning/config.json` with defaults if missing and loads current confi
 cat .planning/config.json
 ```
 
-Parse current values (default to `true` if not present):
-- `workflow.research` — spawn researcher during plan-phase
-- `workflow.plan_check` — spawn plan checker during plan-phase
-- `workflow.verifier` — spawn verifier during execute-phase
-- `workflow.nyquist_validation` — validation architecture research during plan-phase (default: true if absent)
-- `workflow.ui_phase` — generate UI-SPEC.md design contracts for frontend phases (default: true if absent)
-- `workflow.ui_safety_gate` — prompt to run /gsd:ui-phase before planning frontend phases (default: true if absent)
-- `model_profile` — which model each agent uses (default: `balanced`)
-- `git.branching_strategy` — branching approach (default: `"none"`)
+解析当前值（如果不存在，默认设为 `true`）：
+- `workflow.research` — 在 plan-phase 期间生成研究员 (researcher)
+- `workflow.plan_check` — 在 plan-phase 期间生成计划检查员 (plan checker)
+- `workflow.verifier` — 在 execute-phase 期间生成验证员 (verifier)
+- `workflow.nyquist_validation` — 在 plan-phase 期间进行 Nyquist 验证架构研究（缺省为 true）
+- `workflow.ui_phase` — 为前端阶段生成 UI-SPEC.md 设计契约（缺省为 true）
+- `workflow.ui_safety_gate` — 在规划前端阶段前提示运行 /gsd:ui-phase（缺省为 true）
+- `model_profile` — 每个智能体使用的模型（默认：`balanced`）
+- `git.branching_strategy` — 分支策略（默认：`"none"`）
 </step>
 
 <step name="present_settings">
-Use AskUserQuestion with current values pre-selected:
+使用预选了当前值的 AskUserQuestion：
 
 ```
 AskUserQuestion([
   {
-    question: "Which model profile for agents?",
-    header: "Model",
+    question: "智能体使用哪种模型配置 (Model Profile)？",
+    header: "模型 (Model)",
     multiSelect: false,
     options: [
-      { label: "Quality", description: "Opus everywhere except verification (highest cost)" },
-      { label: "Balanced (Recommended)", description: "Opus for planning, Sonnet for research/execution/verification" },
-      { label: "Budget", description: "Sonnet for writing, Haiku for research/verification (lowest cost)" },
-      { label: "Inherit", description: "Use current session model for all agents (best for OpenCode /model)" }
+      { label: "Quality (高质量)", description: "除验证外全部使用 Opus（成本最高）" },
+      { label: "Balanced (平衡 - 推荐)", description: "规划使用 Opus，研究/执行/验证使用 Sonnet" },
+      { label: "Budget (经济)", description: "编写使用 Sonnet，研究/验证使用 Haiku（成本最低）" },
+      { label: "Inherit (继承)", description: "所有智能体使用当前会话模型（最适合 OpenRouter、本地模型或运行时模型切换）" }
     ]
   },
   {
-    question: "Spawn Plan Researcher? (researches domain before planning)",
-    header: "Research",
+    question: "是否生成计划研究员 (Plan Researcher)？（在规划前研究领域知识）",
+    header: "研究 (Research)",
     multiSelect: false,
     options: [
-      { label: "Yes", description: "Research phase goals before planning" },
-      { label: "No", description: "Skip research, plan directly" }
+      { label: "是 (Yes)", description: "在规划前研究阶段目标" },
+      { label: "否 (No)", description: "跳过研究，直接规划" }
     ]
   },
   {
-    question: "Spawn Plan Checker? (verifies plans before execution)",
-    header: "Plan Check",
+    question: "是否生成计划检查员 (Plan Checker)？（在执行前验证计划）",
+    header: "计划检查 (Plan Check)",
     multiSelect: false,
     options: [
-      { label: "Yes", description: "Verify plans meet phase goals" },
-      { label: "No", description: "Skip plan verification" }
+      { label: "是 (Yes)", description: "验证计划是否符合阶段目标" },
+      { label: "否 (No)", description: "跳过计划验证" }
     ]
   },
   {
-    question: "Spawn Execution Verifier? (verifies phase completion)",
-    header: "Verifier",
+    question: "是否生成执行验证员 (Execution Verifier)？（验证阶段完成情况）",
+    header: "验证员 (Verifier)",
     multiSelect: false,
     options: [
-      { label: "Yes", description: "Verify must-haves after execution" },
-      { label: "No", description: "Skip post-execution verification" }
+      { label: "是 (Yes)", description: "在执行后验证必选项 (must-haves)" },
+      { label: "否 (No)", description: "跳过执行后验证" }
     ]
   },
   {
-    question: "Auto-advance pipeline? (discuss → plan → execute automatically)",
-    header: "Auto",
+    question: "是否自动推进管线？（自动进行 讨论 → 规划 → 执行）",
+    header: "自动 (Auto)",
     multiSelect: false,
     options: [
-      { label: "No (Recommended)", description: "Manual /clear + paste between stages" },
-      { label: "Yes", description: "Chain stages via Task() subagents (same isolation)" }
+      { label: "否 (No - 推荐)", description: "手动执行 /clear + 在各个阶段间粘贴" },
+      { label: "是 (Yes)", description: "通过 Task() 子智能体链接各个阶段（保持相同的隔离性）" }
     ]
   },
   {
-    question: "Enable Nyquist Validation? (researches test coverage during planning)",
+    question: "启用 Nyquist 验证？（在规划期间研究测试覆盖范围）",
     header: "Nyquist",
     multiSelect: false,
     options: [
-      { label: "Yes (Recommended)", description: "Research automated test coverage during plan-phase. Adds validation requirements to plans. Blocks approval if tasks lack automated verify." },
-      { label: "No", description: "Skip validation research. Good for rapid prototyping or no-test phases." }
+      { label: "是 (Yes - 推荐)", description: "在 plan-phase 期间研究自动化测试覆盖。在计划中增加验证要求。如果任务缺少自动化验证，则阻止通过。" },
+      { label: "否 (No)", description: "跳过验证研究。适合快速原型设计或无测试阶段。" }
     ]
   },
-  // Note: Nyquist validation depends on research output. If research is disabled,
-  // plan-phase automatically skips Nyquist steps (no RESEARCH.md to extract from).
+  // 注意：Nyquist 验证依赖于研究输出。如果禁用了研究，
+  // plan-phase 将自动跳过 Nyquist 步骤（没有可供提取的 RESEARCH.md）。
   {
-    question: "Enable UI Phase? (generates UI-SPEC.md design contracts for frontend phases)",
-    header: "UI Phase",
+    question: "启用 UI 阶段 (UI Phase)？（为前端阶段生成 UI-SPEC.md 设计契约）",
+    header: "UI 阶段",
     multiSelect: false,
     options: [
-      { label: "Yes (Recommended)", description: "Generate UI design contracts before planning frontend phases. Locks spacing, typography, color, and copywriting." },
-      { label: "No", description: "Skip UI-SPEC generation. Good for backend-only projects or API phases." }
-    ]
-  },
-  {
-    question: "Enable UI Safety Gate? (prompts to run /gsd:ui-phase before planning frontend phases)",
-    header: "UI Gate",
-    multiSelect: false,
-    options: [
-      { label: "Yes (Recommended)", description: "plan-phase asks to run /gsd:ui-phase first when frontend indicators detected." },
-      { label: "No", description: "No prompt — plan-phase proceeds without UI-SPEC check." }
+      { label: "是 (Yes - 推荐)", description: "在规划前端阶段前生成 UI 设计契约。锁定间距、排版、颜色和文案。" },
+      { label: "否 (No)", description: "跳过 UI-SPEC 生成。适合仅后端项目或 API 阶段。" }
     ]
   },
   {
-    question: "Git branching strategy?",
-    header: "Branching",
+    question: "启用 UI 安全闸门 (UI Safety Gate)？（在规划前端阶段前提示运行 /gsd:ui-phase）",
+    header: "UI 闸门 (UI Gate)",
     multiSelect: false,
     options: [
-      { label: "None (Recommended)", description: "Commit directly to current branch" },
-      { label: "Per Phase", description: "Create branch for each phase (gsd/phase-{N}-{name})" },
-      { label: "Per Milestone", description: "Create branch for entire milestone (gsd/{version}-{name})" }
+      { label: "是 (Yes - 推荐)", description: "当检测到前端特征时，plan-phase 会提示先运行 /gsd:ui-phase。" },
+      { label: "否 (No)", description: "不提示 —— plan-phase 直接进行，不检查 UI-SPEC。" }
     ]
   },
   {
-    question: "Enable context window warnings? (injects advisory messages when context is getting full)",
-    header: "Ctx Warnings",
+    question: "Git 分支策略？",
+    header: "分支 (Branching)",
     multiSelect: false,
     options: [
-      { label: "Yes (Recommended)", description: "Warn when context usage exceeds 65%. Helps avoid losing work." },
-      { label: "No", description: "Disable warnings. Allows Claude to reach auto-compact naturally. Good for long unattended runs." }
+      { label: "无 (None - 推荐)", description: "直接提交到当前分支" },
+      { label: "按阶段 (Per Phase)", description: "为每个阶段创建分支 (gsd/phase-{N}-{name})" },
+      { label: "按里程碑 (Per Milestone)", description: "为整个里程碑创建分支 (gsd/{version}-{name})" }
+    ]
+  },
+  {
+    question: "启用上下文窗口警告？（在上下文快满时注入建议消息）",
+    header: "上下文警告 (Ctx Warnings)",
+    multiSelect: false,
+    options: [
+      { label: "是 (Yes - 推荐)", description: "当上下文使用量超过 65% 时发出警告。有助于避免丢失工作。" },
+      { label: "否 (No)", description: "禁用警告。允许 Claude 自然地达到自动压缩。适合长时间无人值守运行。" }
+    ]
+  },
+  {
+    question: "在提问前研究最佳实践？（在 new-project 和 discuss-phase 期间进行网页搜索）",
+    header: "研究提问 (Research Qs)",
+    multiSelect: false,
+    options: [
+      { label: "否 (No - 推荐)", description: "直接提问。更快，消耗更少 Token。" },
+      { label: "是 (Yes)", description: "在每组问题前搜索网页以获取最佳实践。提问更具针对性，但消耗更多 Token。" }
     ]
   }
 ])
@@ -141,7 +150,7 @@ AskUserQuestion([
 </step>
 
 <step name="update_config">
-Merge new settings into existing config.json:
+将新设置合并到现有的 config.json 中：
 
 ```json
 {
@@ -157,41 +166,47 @@ Merge new settings into existing config.json:
     "ui_safety_gate": true/false
   },
   "git": {
-    "branching_strategy": "none" | "phase" | "milestone"
+    "branching_strategy": "none" | "phase" | "milestone",
+    "quick_branch_template": <string|null>
   },
   "hooks": {
-    "context_warnings": true/false
+    "context_warnings": true/false,
+    "workflow_guard": true/false,
+    "research_questions": true/false
+  },
+  "workflow": {
+    "text_mode": true/false  // 使用纯文本提问而不是 TUI 菜单（用于 /rc 远程会话）
   }
 }
 ```
 
-Write updated config to `.planning/config.json`.
+将更新后的配置写入 `.planning/config.json`。
 </step>
 
 <step name="save_as_defaults">
-Ask whether to save these settings as global defaults for future projects:
+询问是否将这些设置保存为未来项目的全局默认值：
 
 ```
 AskUserQuestion([
   {
-    question: "Save these as default settings for all new projects?",
-    header: "Defaults",
+    question: "是否将这些设置为所有新项目的默认设置？",
+    header: "默认值 (Defaults)",
     multiSelect: false,
     options: [
-      { label: "Yes", description: "New projects start with these settings (saved to ~/.gsd/defaults.json)" },
-      { label: "No", description: "Only apply to this project" }
+      { label: "是 (Yes)", description: "新项目将使用这些设置（保存到 ~/.gsd/defaults.json）" },
+      { label: "否 (No)", description: "仅应用于此项目" }
     ]
   }
 ])
 ```
 
-If "Yes": write the same config object (minus project-specific fields like `brave_search`) to `~/.gsd/defaults.json`:
+如果选择 "是 (Yes)"：将相同的配置对象（去掉项目特定字段，如 `brave_search`）写入 `~/.gsd/defaults.json`：
 
 ```bash
 mkdir -p ~/.gsd
 ```
 
-Write `~/.gsd/defaults.json` with:
+写入 `~/.gsd/defaults.json`：
 ```json
 {
   "mode": <current>,
@@ -200,6 +215,7 @@ Write `~/.gsd/defaults.json` with:
   "commit_docs": <current>,
   "parallelization": <current>,
   "branching_strategy": <current>,
+  "quick_branch_template": <current>,
   "workflow": {
     "research": <current>,
     "plan_check": <current>,
@@ -214,43 +230,43 @@ Write `~/.gsd/defaults.json` with:
 </step>
 
 <step name="confirm">
-Display:
+显示：
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- GSD ► SETTINGS UPDATED
+ GSD ► 设置已更新 (SETTINGS UPDATED)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-| Setting              | Value |
-|----------------------|-------|
-| Model Profile        | {quality/balanced/budget/inherit} |
-| Plan Researcher      | {On/Off} |
-| Plan Checker         | {On/Off} |
-| Execution Verifier   | {On/Off} |
-| Auto-Advance         | {On/Off} |
-| Nyquist Validation   | {On/Off} |
-| UI Phase             | {On/Off} |
-| UI Safety Gate       | {On/Off} |
-| Git Branching        | {None/Per Phase/Per Milestone} |
-| Context Warnings     | {On/Off} |
-| Saved as Defaults    | {Yes/No} |
+| 设置 (Setting)       | 值 (Value) |
+|----------------------|-----------|
+| 模型配置 (Model Profile) | {quality/balanced/budget/inherit} |
+| 计划研究员 (Plan Researcher) | {开启/关闭} |
+| 计划检查员 (Plan Checker) | {开启/关闭} |
+| 执行验证员 (Execution Verifier) | {开启/关闭} |
+| 自动推进 (Auto-Advance) | {开启/关闭} |
+| Nyquist 验证 (Nyquist Validation) | {开启/关闭} |
+| UI 阶段 (UI Phase) | {开启/关闭} |
+| UI 安全闸门 (UI Safety Gate) | {开启/关闭} |
+| Git 分支 (Git Branching) | {无/按阶段/按里程碑} |
+| 上下文警告 (Context Warnings) | {开启/关闭} |
+| 已保存为默认值 (Saved as Defaults) | {是/否} |
 
-These settings apply to future /gsd:plan-phase and /gsd:execute-phase runs.
+这些设置将应用于未来的 /gsd:plan-phase 和 /gsd:execute-phase 运行。
 
-Quick commands:
-- /gsd:set-profile <profile> — switch model profile
-- /gsd:plan-phase --research — force research
-- /gsd:plan-phase --skip-research — skip research
-- /gsd:plan-phase --skip-verify — skip plan check
+快速命令：
+- /gsd:set-profile <profile> — 切换模型配置
+- /gsd:plan-phase --research — 强制进行研究
+- /gsd:plan-phase --skip-research — 跳过研究
+- /gsd:plan-phase --skip-verify — 跳过计划检查
 ```
 </step>
 
 </process>
 
 <success_criteria>
-- [ ] Current config read
-- [ ] User presented with 9 settings (profile + 7 workflow toggles + git branching)
-- [ ] Config updated with model_profile, workflow, and git sections
-- [ ] User offered to save as global defaults (~/.gsd/defaults.json)
-- [ ] Changes confirmed to user
+- [ ] 已读取当前配置
+- [ ] 向用户呈现了 9 个设置（配置 + 7 个工作流开关 + Git 分支）
+- [ ] 配置已更新，包含 model_profile、workflow 和 git 部分
+- [ ] 已提议用户保存为全局默认值 (~/.gsd/defaults.json)
+- [ ] 已向用户确认更改
 </success_criteria>

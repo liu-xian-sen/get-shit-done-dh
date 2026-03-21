@@ -105,12 +105,14 @@ Execute all plans in a phase with wave-based parallelization.
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `N` | **Yes** | Phase number to execute |
+| `--wave N` | No | Execute only Wave `N` in the phase |
 
 **Prerequisites:** Phase has PLAN.md files
 **Produces:** `{phase}-{N}-SUMMARY.md`, `{phase}-VERIFICATION.md`, git commits
 
 ```bash
 /gsd:execute-phase 1                # Execute phase 1
+/gsd:execute-phase 1 --wave 2       # Execute only Wave 2
 ```
 
 ---

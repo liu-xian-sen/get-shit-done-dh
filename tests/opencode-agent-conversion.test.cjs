@@ -54,10 +54,10 @@ describe('OpenCode agent conversion (isAgent: true)', () => {
     assert.ok(frontmatter.includes('name: gsd-executor'), 'name: should be preserved for agents');
   });
 
-  test('adds model: inherit', () => {
+  test('does not add model: inherit (removed per #1156)', () => {
     const result = convertClaudeToOpencodeFrontmatter(SAMPLE_AGENT, { isAgent: true });
     const frontmatter = result.split('---')[1];
-    assert.ok(frontmatter.includes('model: inherit'), 'model: inherit should be added');
+    assert.ok(!frontmatter.includes('model: inherit'), 'model: inherit should NOT be added (OpenCode does not recognize inherit keyword)');
   });
 
   test('adds mode: subagent', () => {

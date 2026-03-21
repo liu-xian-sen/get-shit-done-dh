@@ -91,18 +91,17 @@ describe('quick workflow: research step', () => {
   test('step 4.75 research phase exists', () => {
     content = fs.readFileSync(workflowPath, 'utf-8');
     assert.ok(
-      content.includes('4.75'),
-      'workflow should contain step 4.75 (research phase)'
+      content.includes('步骤 4.75'),
+      'workflow should contain Step 4.75 (research phase)'
     );
   });
 
   test('research step spawns gsd-phase-researcher', () => {
     content = fs.readFileSync(workflowPath, 'utf-8');
-    const step475Idx = content.indexOf('4.75');
-    const step5Idx = content.indexOf('第 5 步', step475Idx);
-    assert.ok(step475Idx >= 0, 'should have step 4.75');
-    assert.ok(step5Idx >= 0, 'should have step 5');
-    const researchSection = content.substring(step475Idx, step5Idx);
+    const researchSection = content.substring(
+      content.indexOf('步骤 4.75'),
+      content.indexOf('步骤 5：')
+    );
     assert.ok(
       researchSection.includes('subagent_type="gsd-phase-researcher"'),
       'research step should spawn gsd-phase-researcher agent'
@@ -111,11 +110,10 @@ describe('quick workflow: research step', () => {
 
   test('research step writes RESEARCH.md', () => {
     content = fs.readFileSync(workflowPath, 'utf-8');
-    const step475Idx = content.indexOf('4.75');
-    const step5Idx = content.indexOf('第 5 步', step475Idx);
-    assert.ok(step475Idx >= 0, 'should have step 4.75');
-    assert.ok(step5Idx >= 0, 'should have step 5');
-    const researchSection = content.substring(step475Idx, step5Idx);
+    const researchSection = content.substring(
+      content.indexOf('步骤 4.75'),
+      content.indexOf('步骤 5：')
+    );
     assert.ok(
       researchSection.includes('RESEARCH.md'),
       'research step should reference RESEARCH.md output file'
@@ -124,12 +122,10 @@ describe('quick workflow: research step', () => {
 
   test('planner context includes RESEARCH.md when research mode', () => {
     content = fs.readFileSync(workflowPath, 'utf-8');
-    // Find step 5 (planner) section — use Chinese step marker
-    const step5Start = content.indexOf('第 5 步');
-    const step55Start = content.indexOf('5.5');
-    assert.ok(step5Start >= 0, 'should have step 5 marker');
-    assert.ok(step55Start >= 0, 'should have step 5.5 marker');
-    const plannerSection = content.substring(step5Start, step55Start);
+    const plannerSection = content.substring(
+      content.indexOf('步骤 5：派生规划员（快速模式）'),
+      content.indexOf('步骤 5.5')
+    );
     assert.ok(
       plannerSection.includes('RESEARCH_MODE') && plannerSection.includes('RESEARCH.md'),
       'planner should read RESEARCH.md when $RESEARCH_MODE is true'
@@ -270,7 +266,7 @@ describe('quick workflow: banner variants for flag combinations', () => {
   test('has banner for research-only mode', () => {
     content = fs.readFileSync(path.join(WORKFLOWS_DIR, 'quick.md'), 'utf-8');
     assert.ok(
-      content.includes('快速任务 (研究)'),
+      content.includes('快速任务 (RESEARCH)'),
       'should have banner for --research only'
     );
   });
@@ -278,7 +274,7 @@ describe('quick workflow: banner variants for flag combinations', () => {
   test('has banner for discuss + research mode', () => {
     content = fs.readFileSync(path.join(WORKFLOWS_DIR, 'quick.md'), 'utf-8');
     assert.ok(
-      content.includes('讨论 + 研究)'),
+      content.includes('DISCUSS + RESEARCH)'),
       'should have banner for --discuss --research'
     );
   });
@@ -286,7 +282,7 @@ describe('quick workflow: banner variants for flag combinations', () => {
   test('has banner for research + full mode', () => {
     content = fs.readFileSync(path.join(WORKFLOWS_DIR, 'quick.md'), 'utf-8');
     assert.ok(
-      content.includes('研究 + 完整模式)'),
+      content.includes('RESEARCH + FULL)'),
       'should have banner for --research --full'
     );
   });
@@ -294,7 +290,7 @@ describe('quick workflow: banner variants for flag combinations', () => {
   test('has banner for all three flags', () => {
     content = fs.readFileSync(path.join(WORKFLOWS_DIR, 'quick.md'), 'utf-8');
     assert.ok(
-      content.includes('讨论 + 研究 + 完整模式)'),
+      content.includes('DISCUSS + RESEARCH + FULL)'),
       'should have banner for --discuss --research --full'
     );
   });

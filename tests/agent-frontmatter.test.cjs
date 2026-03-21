@@ -36,7 +36,7 @@ describe('HDOC: anti-heredoc instruction', () => {
     test(`${agent} has anti-heredoc instruction`, () => {
       const content = fs.readFileSync(path.join(AGENTS_DIR, agent + '.md'), 'utf-8');
       assert.ok(
-        content.includes("`Bash(cat << 'EOF')`") && content.toLowerCase().includes('heredoc'),
+        content.includes("`Bash(cat << 'EOF')`") && content.includes('heredoc'),
         `${agent} missing anti-heredoc instruction`
       );
     });
@@ -151,6 +151,20 @@ describe('SPAWN: spawn type consistency', () => {
       'diagnose-issues should spawn gsd-debugger, not general-purpose'
     );
   });
+
+  test('execute-phase has Copilot sequential fallback in runtime_compatibility', () => {
+    const content = fs.readFileSync(
+      path.join(WORKFLOWS_DIR, 'execute-phase.md'), 'utf-8'
+    );
+    assert.ok(
+      content.includes('顺序内联执行'),
+      'execute-phase must document sequential inline execution as Copilot fallback'
+    );
+    assert.ok(
+      content.includes('抽查'),
+      'execute-phase must have spot-check fallback for completion detection'
+    );
+  });
 });
 
 // ─── Required Frontmatter Fields ─────────────────────────────────────────────
@@ -166,4 +180,162 @@ describe('AGENT: required frontmatter fields', () => {
       assert.ok(frontmatter.includes('color:'), `${agent} missing color:`);
     });
   }
+});
+
+// ─── CLAUDE.md Compliance ───────────────────────────────────────────────────
+
+describe('CLAUDEMD: CLAUDE.md compliance enforcement', () => {
+  test('gsd-plan-checker has Dimension 10: CLAUDE.md Compliance', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gsd-plan-checker.md'), 'utf-8');
+    assert.ok(
+      content.includes('维度 10：CLAUDE.md 合规性'),
+      'gsd-plan-checker must have Dimension 10 for CLAUDE.md compliance checking'
+    );
+    assert.ok(
+      content.includes('claude_md_compliance'),
+      'gsd-plan-checker must use claude_md_compliance as dimension identifier'
+    );
+  });
+
+  test('gsd-phase-researcher has CLAUDE.md enforcement directive', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gsd-phase-researcher.md'), 'utf-8');
+    assert.ok(
+      content.includes('CLAUDE.md 强制执行'),
+      'gsd-phase-researcher must enforce CLAUDE.md directives during research'
+    );
+    assert.ok(
+      content.includes('项目约束 (来自 CLAUDE.md)'),
+      'gsd-phase-researcher must output a Project Constraints section from CLAUDE.md'
+    );
+  });
+
+  test('gsd-executor has CLAUDE.md enforcement directive', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gsd-executor.md'), 'utf-8');
+    assert.ok(
+      content.includes('CLAUDE.md 强制执行'),
+      'gsd-executor must enforce CLAUDE.md directives during execution'
+    );
+    assert.ok(
+      content.includes('CLAUDE.md 规则——它的优先级高于计划说明'),
+      'gsd-executor must specify CLAUDE.md precedence over plan instructions'
+    );
+  });
+
+  test('all three agents read CLAUDE.md in project_context', () => {
+    const agents = ['gsd-plan-checker', 'gsd-phase-researcher', 'gsd-executor'];
+    for (const agent of agents) {
+      const content = fs.readFileSync(path.join(AGENTS_DIR, agent + '.md'), 'utf-8');
+      assert.ok(
+        content.includes('`./CLAUDE.md`'),
+        `${agent} must read ./CLAUDE.md in project_context section`
+      );
+    }
+  });
+});
+
+// ─── Verification Data-Flow and Environment Audit (#1245) ────────────────────
+
+describe('VERIFY: data-flow trace, environment audit, and behavioral spot-checks', () => {
+  test('gsd-verifier has Step 4b: Data-Flow Trace', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gsd-verifier.md'), 'utf-8');
+    assert.ok(
+      content.includes('第 4b 步：数据流追踪'),
+      'gsd-verifier must have Step 4b for data-flow tracing'
+    );
+    assert.ok(
+      content.includes('HOLLOW'),
+      'gsd-verifier must define HOLLOW status for wired-but-disconnected artifacts'
+    );
+    assert.ok(
+      content.includes('DISCONNECTED'),
+      'gsd-verifier must define DISCONNECTED status for missing data sources'
+    );
+  });
+
+  test('gsd-verifier has Step 7b: Behavioral Spot-Checks', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gsd-verifier.md'), 'utf-8');
+    assert.ok(
+      content.includes('第 7b 步：行为抽查'),
+      'gsd-verifier must have Step 7b for behavioral spot-checks'
+    );
+    assert.ok(
+      content.includes('SKIP'),
+      'gsd-verifier spot-checks must support SKIP status for untestable items'
+    );
+  });
+
+  test('gsd-verifier VERIFICATION.md template includes data-flow and spot-check sections', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gsd-verifier.md'), 'utf-8');
+    assert.ok(
+      content.includes('数据流追踪 (第 4 层)'),
+      'VERIFICATION.md template must include Data-Flow Trace section'
+    );
+    assert.ok(
+      content.includes('行为抽查'),
+      'VERIFICATION.md template must include Behavioral Spot-Checks section'
+    );
+  });
+
+  test('gsd-verifier success criteria include data-flow and spot-checks', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gsd-verifier.md'), 'utf-8');
+    assert.ok(
+      content.includes('数据流追踪（第 4 层）'),
+      'success criteria must include data-flow trace step'
+    );
+    assert.ok(
+      content.includes('行为抽查'),
+      'success criteria must include behavioral spot-checks step'
+    );
+  });
+
+  test('gsd-phase-researcher has Step 2.6: Environment Availability Audit', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gsd-phase-researcher.md'), 'utf-8');
+    assert.ok(
+      content.includes('步骤 2.6: 环境可用性审计'),
+      'gsd-phase-researcher must have Step 2.6 for environment availability auditing'
+    );
+    assert.ok(
+      content.includes('环境可用性'),
+      'gsd-phase-researcher must include Environment Availability section in RESEARCH.md template'
+    );
+  });
+
+  test('gsd-phase-researcher success criteria include environment audit', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gsd-phase-researcher.md'), 'utf-8');
+    assert.ok(
+      content.includes('审计了环境可用性'),
+      'success criteria must include environment availability audit step'
+    );
+  });
+});
+
+// ─── Discussion Log ──────────────────────────────────────────────────────────
+
+describe('DISCUSS: discussion log generation', () => {
+  test('discuss-phase workflow references DISCUSSION-LOG.md generation', () => {
+    const content = fs.readFileSync(
+      path.join(WORKFLOWS_DIR, 'discuss-phase.md'), 'utf-8'
+    );
+    assert.ok(
+      content.includes('DISCUSSION-LOG.md'),
+      'discuss-phase must reference DISCUSSION-LOG.md generation'
+    );
+    assert.ok(
+      content.includes('仅供人类参考') || content.includes('仅用于审计轨迹'),
+      'discuss-phase must mark discussion log as audit-only'
+    );
+  });
+
+  test('discussion-log template exists', () => {
+    const templatePath = path.join(__dirname, '..', 'get-shit-done', 'templates', 'discussion-log.md');
+    assert.ok(
+      fs.existsSync(templatePath),
+      'discussion-log.md template must exist'
+    );
+    const content = fs.readFileSync(templatePath, 'utf-8');
+    assert.ok(
+      content.includes('请勿将其作为计划、研究或执行代理的输入') || content.includes('请勿将其作为'),
+      'template must contain audit-only notice'
+    );
+  });
 });

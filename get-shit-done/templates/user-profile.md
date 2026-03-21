@@ -1,11 +1,13 @@
-# 开发者画像
+# 开发者画像 (Developer Profile)
 
-> 此画像由会话分析生成。它包含供 Claude 在与该开发者合作时遵循的行为指令。高置信度维度应直接执行。低置信度维度应以委婉的方式处理（“根据您的画像，我会尝试 X —— 如果不对请告诉我”）。
+> 此画像是基于会话分析生成的。它包含了供 Claude 在与此开发者合作时遵循的行为指令。
+> 对于**高 (HIGH)** 置信度的维度，应直接执行。对于**低 (LOW)** 置信度的维度，应在
+> 执行时留有余地（例如：“根据您的画像，我将尝试 X —— 如果不对请告诉我”）。
 
-**生成时间：** {{generated_at}}
-**数据来源：** {{data_source}}
+**生成日期：** {{generated_at}}
+**来源：** {{data_source}}
 **分析的项目：** {{projects_list}}
-**分析的消息：** {{message_count}}
+**分析的消息数：** {{message_count}}
 
 ---
 
@@ -15,7 +17,7 @@
 
 ---
 
-## 沟通风格
+## 沟通风格 (Communication Style)
 
 **评分：** {{communication_style.rating}} | **置信度：** {{communication_style.confidence}}
 
@@ -29,7 +31,7 @@
 
 ---
 
-## 决策速度
+## 决策速度 (Decision Speed)
 
 **评分：** {{decision_speed.rating}} | **置信度：** {{decision_speed.confidence}}
 
@@ -43,7 +45,7 @@
 
 ---
 
-## 解释深度
+## 说明深度 (Explanation Depth)
 
 **评分：** {{explanation_depth.rating}} | **置信度：** {{explanation_depth.confidence}}
 
@@ -57,7 +59,7 @@
 
 ---
 
-## 调试方法
+## 调试方法 (Debugging Approach)
 
 **评分：** {{debugging_approach.rating}} | **置信度：** {{debugging_approach.confidence}}
 
@@ -71,7 +73,7 @@
 
 ---
 
-## UX 哲学
+## UX 理念 (UX Philosophy)
 
 **评分：** {{ux_philosophy.rating}} | **置信度：** {{ux_philosophy.confidence}}
 
@@ -85,7 +87,7 @@
 
 ---
 
-## 厂商哲学
+## 供应商理念 (Vendor Philosophy)
 
 **评分：** {{vendor_philosophy.rating}} | **置信度：** {{vendor_philosophy.confidence}}
 
@@ -99,7 +101,7 @@
 
 ---
 
-## 挫败触发点
+## 挫败感触发点 (Frustration Triggers)
 
 **评分：** {{frustration_triggers.rating}} | **置信度：** {{frustration_triggers.confidence}}
 
@@ -113,7 +115,7 @@
 
 ---
 
-## 学习风格
+## 学习风格 (Learning Style)
 
 **评分：** {{learning_style.rating}} | **置信度：** {{learning_style.confidence}}
 
@@ -132,12 +134,12 @@
 | 字段 | 值 |
 |-------|-------|
 | 画像版本 | {{profile_version}} |
-| 生成时间 | {{generated_at}} |
-| 数据来源 | {{data_source}} |
-| 项目数量 | {{projects_count}} |
-| 消息数量 | {{message_count}} |
+| 生成日期 | {{generated_at}} |
+| 来源 | {{data_source}} |
+| 项目数 | {{projects_count}} |
+| 消息数 | {{message_count}} |
 | 已评分维度 | {{dimensions_scored}}/8 |
 | 高置信度 | {{high_confidence_count}} |
-| 中等置信度 | {{medium_confidence_count}} |
+| 中置信度 | {{medium_confidence_count}} |
 | 低置信度 | {{low_confidence_count}} |
-| 排除的敏感内容 | {{sensitive_excluded_summary}} |
+| 已排除敏感内容 | {{sensitive_excluded_summary}} |

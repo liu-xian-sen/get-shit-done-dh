@@ -1,776 +1,778 @@
-1: <overview>
-2: 方案是自动执行的。检查点（Checkpoints）形式化了需要人工验证或决策的交互点。
-3: 
-4: **核心原则：** Claude 通过 CLI/API 自动化一切。检查点用于验证和决策，而不是手动工作。
-5: 
-6: **黄金法则：**
-7: 1. **如果 Claude 能运行它，就让 Claude 运行它** —— 永远不要要求用户执行 CLI 命令、启动服务器或运行构建
-8: 2. **Claude 负责搭建验证环境** —— 启动开发服务器、填充数据库种子、配置环境变量
-9: 3. **用户只做需要人类判断的事** —— 视觉检查、UX 评估、“这感觉对吗？”
-10: 4. **秘密来自用户，自动化来自 Claude** —— 询问 API 密钥，然后 Claude 通过 CLI 使用它们
-11: 5. **自动模式跳过验证/决策检查点** —— 当配置中的 `workflow._auto_chain_active` 或 `workflow.auto_advance` 为 true 时：人工验证自动通过，决策自动选择第一个选项，但人工操作（human-action）仍然会停止（认证关口无法自动化）
-12: </overview>
-13: 
-14: <checkpoint_types>
-15: 
-16: <type name="human-verify">
-17: ## checkpoint:human-verify（最常用 - 90%）
-18: 
-19: **场景：** Claude 完成了自动化工作，人类确认其工作正常。
-20: 
-21: **用于：**
-22: - 视觉 UI 检查（布局、样式、响应能力）
-23: - 交互流程（点击向导、测试用户流程）
-24: - 功能验证（功能是否符合预期）
-25: - 音频/视频播放质量
-26: - 动画流畅度
-27: - 无障碍测试
-28: 
-29: **结构：**
-30: ```xml
-31: <task type="checkpoint:human-verify" gate="blocking">
-32:   <what-built>[Claude 自动化并部署/构建的内容]</what-built>
-33:   <how-to-verify>
-34:     [具体的测试步骤 —— URL、命令、预期行为]
-35:   </how-to-verify>
-36:   <resume-signal>[如何继续 —— "approved"、"yes" 或描述问题]</resume-signal>
-37: </task>
-38: ```
-39: 
-40: **示例：UI 组件（展示关键模式：Claude 在检查点之前启动服务器）**
-41: ```xml
-42: <task type="auto">
-43:   <name>Build responsive dashboard layout</name>
-44:   <files>src/components/Dashboard.tsx, src/app/dashboard/page.tsx</files>
-45:   <action>Create dashboard with sidebar, header, and content area. Use Tailwind responsive classes for mobile.</action>
-46:   <verify>npm run build succeeds, no TypeScript errors</verify>
-47:   <done>Dashboard component builds without errors</done>
-48: </task>
-49: 
-50: <task type="auto">
-51:   <name>Start dev server for verification</name>
-52:   <action>Run `npm run dev` in background, wait for "ready" message, capture port</action>
-53:   <verify>curl http://localhost:3000 returns 200</verify>
-54:   <done>Dev server running at http://localhost:3000</done>
-55: </task>
-56: 
-57: <task type="checkpoint:human-verify" gate="blocking">
-58:   <what-built>Responsive dashboard layout - dev server running at http://localhost:3000</what-built>
-59:   <how-to-verify>
-60:     访问 http://localhost:3000/dashboard 并验证：
-61:     1. 桌面端 (>1024px)：侧边栏在左，内容在右，页眉在顶
-62:     2. 平板端 (768px)：侧边栏折叠为汉堡菜单
-63:     3. 移动端 (375px)：单列布局，底部导航栏出现
-64:     4. 任何尺寸下都没有布局偏移或水平滚动
-65:   </how-to-verify>
-66:   <resume-signal>输入 "approved" 或描述布局问题</resume-signal>
-67: </task>
-68: ```
-69: 
-70: **示例：Xcode 构建**
-71: ```xml
-72: <task type="auto">
-73:   <name>Build macOS app with Xcode</name>
-74:   <files>App.xcodeproj, Sources/</files>
-75:   <action>Run `xcodebuild -project App.xcodeproj -scheme App build`. Check for compilation errors in output.</action>
-76:   <verify>Build output contains "BUILD SUCCEEDED", no errors</verify>
-77:   <done>App builds successfully</done>
-78: </task>
-79: 
-80: <task type="checkpoint:human-verify" gate="blocking">
-81:   <what-built>Built macOS app at DerivedData/Build/Products/Debug/App.app</what-built>
-82:   <how-to-verify>
-83:     打开 App.app 并测试：
-84:     - 应用启动且未崩溃
-85:     - 菜单栏图标出现
-86:     - 设置窗口正确打开
-87:     - 没有视觉漏洞或布局问题
-88:   </how-to-verify>
-89:   <resume-signal>输入 "approved" 或描述问题</resume-signal>
-90: </task>
-91: ```
-92: </type>
-93: 
-94: <type name="decision">
-95: ## checkpoint:decision (9%)
-96: 
-97: **场景：** 人类必须做出影响实现方向的选择。
-98: 
-99: **用于：**
-100: - 技术选型（哪个认证提供商，哪个数据库）
-101: - 架构决策（单体仓库 vs 独立仓库）
-102: - 设计选择（配色方案，布局方案）
-103: - 功能优先级（构建哪个变体）
-104: - 数据模型决策（模式结构）
-105: 
-106: **结构：**
-107: ```xml
-108: <task type="checkpoint:decision" gate="blocking">
-109:   <decision>[待决定的事项]</decision>
-110:   <context>[为什么这个决定很重要]</context>
-111:   <options>
-112:     <option id="option-a">
-113:       <name>[选项名称]</name>
-114:       <pros>[优点]</pros>
-115:       <cons>[权衡]</cons>
-116:     </option>
-117:     <option id="option-b">
-118:       <name>[选项名称]</name>
-119:       <pros>[优点]</pros>
-120:       <cons>[权衡]</cons>
-121:     </option>
-122:   </options>
-123:   <resume-signal>[如何指示选择]</resume-signal>
-124: </task>
-125: ```
-126: 
-127: **示例：认证提供商选择**
-128: ```xml
-129: <task type="checkpoint:decision" gate="blocking">
-130:   <decision>Select authentication provider</decision>
-131:   <context>
-132:     应用需要用户认证。三个可靠的选项，各有权衡。
-133:   </context>
-134:   <options>
-135:     <option id="supabase">
-136:       <name>Supabase Auth</name>
-137:       <pros>与我们使用的 Supabase DB 内置，慷慨的免费层，行级安全集成</pros>
-138:       <cons>UI 可定制性较低，绑定到 Supabase 生态系统</cons>
-139:     </option>
-140:     <option id="clerk">
-141:       <name>Clerk</name>
-142:       <pros>精美的预构建 UI，最佳的开发者体验，卓越的文档</pros>
-143:       <cons>MAU 超过 1 万后收费，供应商锁定</cons>
-144:     </option>
-145:     <option id="nextauth">
-146:       <name>NextAuth.js</name>
-147:       <pros>免费，自托管，最大化控制，广泛采用</pros>
-148:       <cons>更多配置工作，需自行管理安全更新，UI 需要自己做</cons>
-149:     </option>
-150:   </options>
-151:   <resume-signal>选择：supabase、clerk 或 nextauth</resume-signal>
-152: </task>
-153: ```
-154: 
-155: **示例：数据库选择**
-156: ```xml
-157: <task type="checkpoint:decision" gate="blocking">
-158:   <decision>Select database for user data</decision>
-159:   <context>
-160:     应用需要持久存储用户、会话和用户生成的内容。
-161:     预期规模：首年 1 万用户，100 万条记录。
-162:   </context>
-163:   <options>
-164:     <option id="supabase">
-165:       <name>Supabase (Postgres)</name>
-166:       <pros>全功能 SQL，慷慨的免费层，内置认证，实时订阅</pros>
-167:       <cons>实时功能的供应商锁定，比原生 Postgres 灵活性稍低</cons>
-168:     </option>
-169:     <option id="planetscale">
-170:       <name>PlanetScale (MySQL)</name>
-171:       <pros>无服务器扩展，分支工作流，优秀的 DX</pros>
-172:       <cons>使用 MySQL 而非 Postgres，免费层没有外键</cons>
-173:     </option>
-174:     <option id="convex">
-175:       <name>Convex</name>
-176:       <pros>默认实时，TypeScript 原生，自动缓存</pros>
-177:       <cons>较新的平台，不同的思维模型，SQL 灵活性较低</cons>
-178:     </option>
-179:   </options>
-180:   <resume-signal>选择：supabase、planetscale 或 convex</resume-signal>
-181: </task>
-182: ```
-183: </type>
-184: 
-185: <type name="human-action">
-186: ## checkpoint:human-action (1% - 罕见)
-187: 
-188: **场景：** 动作没有 CLI/API 且需要纯人工交互，或者 Claude 在自动化过程中遇到了认证关口。
-189: 
-190: **仅用于：**
-191: - **认证关口** —— Claude 尝试了 CLI/API 但需要凭据（这不代表失败）
-192: - 邮件验证链接（点击邮件）
-193: - 短信 2FA 代码（手机验证）
-194: - 手动账户审批（平台需要人工审核）
-195: - 信用卡 3D Secure 流程（基于 Web 的支付授权）
-196: - OAuth 应用审批（基于 Web 的审批）
-197: 
-198: **不要用于预设的手动工作：**
-199: - 部署（使用 CLI —— 如果需要则使用认证关口）
-200: - 创建 Webhooks/数据库（使用 API/CLI —— 如果需要则使用认证关口）
-201: - 运行构建/测试（使用 Bash 工具）
-202: - 创建文件（使用 Write 工具）
-203: 
-204: **结构：**
-205: ```xml
-206: <task type="checkpoint:human-action" gate="blocking">
-207:   <action>[人类必须做的操作 —— Claude 已经完成了所有可以自动化的部分]</action>
-208:   <instructions>
-209:     [Claude 已经自动化的内容]
-210:     [那件需要人工操作的一件事]
-211:   </instructions>
-212:   <verification>[Claude 之后可以检查的内容]</verification>
-213:   <resume-signal>[如何继续]</resume-signal>
-214: </task>
-215: ```
-216: 
-217: **示例：邮件验证**
-218: ```xml
-219: <task type="auto">
-220:   <name>Create SendGrid account via API</name>
-221:   <action>Use SendGrid API to create subuser account with provided email. Request verification email.</action>
-222:   <verify>API returns 201, account created</verify>
-223:   <done>Account created, verification email sent</done>
-224: </task>
-225: 
-226: <task type="checkpoint:human-action" gate="blocking">
-227:   <action>Complete email verification for SendGrid account</action>
-228:   <instructions>
-229:     我创建了账户并请求了验证邮件。
-230:     检查您的收件箱找到 SendGrid 验证链接并点击它。
-231:   </instructions>
-232:   <verification>SendGrid API key works: curl test succeeds</verification>
-233:   <resume-signal>邮件验证后输入 "done"</resume-signal>
-234: </task>
-235: ```
-236: 
-237: **示例：认证关口（动态检查点）**
-238: ```xml
-239: <task type="auto">
-240:   <name>Deploy to Vercel</name>
-241:   <files>.vercel/, vercel.json</files>
-242:   <action>Run `vercel --yes` to deploy</action>
-243:   <verify>vercel ls shows deployment, curl returns 200</verify>
-244: </task>
-245: 
-246: <!-- 如果 vercel 返回 "Error: Not authenticated"，Claude 会即时创建检查点 -->
-247: 
-248: <task type="checkpoint:human-action" gate="blocking">
-249:   <action>Authenticate Vercel CLI so I can continue deployment</action>
-250:   <instructions>
-251:     我尝试部署但遇到了认证错误。
-252:     运行：vercel login
-253:     这将打开您的浏览器 —— 完成认证流程。
-254:   </instructions>
-255:   <verification>vercel whoami 返回您的账户邮箱</verification>
-256:   <resume-signal>认证后输入 "done"</resume-signal>
-257: </task>
-258: 
-259: <!-- 认证后，Claude 重试部署 -->
-260: 
-261: <task type="auto">
-262:   <name>Retry Vercel deployment</name>
-263:   <action>Run `vercel --yes` (now authenticated)</action>
-264:   <verify>vercel ls shows deployment, curl returns 200</verify>
-265: </task>
-266: ```
-267: 
-268: **关键区别：** 认证关口是在 Claude 遇到认证错误时动态创建的。它们不是预先规划的 —— Claude 先尝试自动化，只有在被阻塞时才询问凭据。
-269: </type>
-270: </checkpoint_types>
-271: 
-272: <execution_protocol>
-273: 
-274: 当 Claude 遇到 `type="checkpoint:*"` 时：
-275: 
-276: 1. **立即停止** —— 不要进行下一个任务
-277: 2. **清晰展示检查点** —— 使用下面的格式
-278: 3. **等待用户响应** —— 不要幻觉已完成
-279: 4. **尽可能验证** —— 检查文件、运行测试，或执行任何指定的操作
-280: 5. **恢复执行** —— 仅在确认后继续下一个任务
-281: 
-282: **针对 checkpoint:human-verify：**
-283: ```
-284: ╔═══════════════════════════════════════════════════════╗
-285: ║  检查点：需要验证                                      ║
-286: ╚═══════════════════════════════════════════════════════╝
-287: 
-288: 进度：5/8 任务已完成
-289: 任务：响应式仪表盘布局
-290: 
-291: 已构建：响应式仪表盘，位于 /dashboard
-292: 
-293: 如何验证：
-294:   1. 访问：http://localhost:3000/dashboard
-295:   2. 桌面端 (>1024px)：侧边栏可见，内容填充剩余空间
-296:   3. 平板端 (768px)：侧边栏折叠为图标
-297:   4. 移动端 (375px)：侧边栏隐藏，页眉出现汉堡菜单
-298: 
-299: ────────────────────────────────────────────────────────
-300: → 您的操作：输入 "approved" 或描述问题
-301: ────────────────────────────────────────────────────────
-302: ```
-303: 
-304: **针对 checkpoint:decision：**
-305: ```
-306: ╔═══════════════════════════════════════════════════════╗
-307: ║  检查点：需要决策                                      ║
-308: ╚═══════════════════════════════════════════════════════╝
-309: 
-310: 进度：2/6 任务已完成
-311: 任务：选择认证提供商
-312: 
-313: 决策：我们应该使用哪个认证提供商？
-314: 
-315: 上下文：需要用户认证。三个选项，各有权衡。
-316: 
-317: 选项：
-318:   1. supabase - 与我们的数据库集成，提供免费层
-319:      优点：行级安全集成，慷慨的免费层
-320:      缺点：UI 可定制性较低，生态系统锁定
-321: 
-322:   2. clerk - 最佳开发者体验，超过 1 万用户后收费
-323:      优点：精美的预构建 UI，卓越的文档
-324:      缺点：供应商锁定，规模化后的定价
-325: 
-326:   3. nextauth - 自托管，最大化控制
-327:      优点：免费，无供应商锁定，广泛采用
-328:      缺点：更多配置工作，需自行负责安全更新
-329: 
-330: ────────────────────────────────────────────────────────
-331: → 您的操作：选择 supabase、clerk 或 nextauth
-332: ────────────────────────────────────────────────────────
-333: ```
-334: 
-335: **针对 checkpoint:human-action：**
-336: ```
-337: ╔═══════════════════════════════════════════════════════╗
-338: ║  检查点：需要操作                                      ║
-339: ╚═══════════════════════════════════════════════════════╝
-340: 
-341: 进度：3/8 任务已完成
-342: 任务：部署到 Vercel
-343: 
-344: 尝试：vercel --yes
-345: 错误：未认证。请运行 'vercel login'
-346: 
-347: 您需要执行的操作：
-348:   1. 运行：vercel login
-349:   2. 在打开的浏览器中完成认证
-350:   3. 完成后返回此处
-351: 
-352: 我将验证：vercel whoami 返回您的账户
-353: 
-354: ────────────────────────────────────────────────────────
-355: → 您的操作：认证后输入 "done"
-356: ────────────────────────────────────────────────────────
-357: ```
-358: </execution_protocol>
-359: 
-360: <authentication_gates>
-361: 
-362: **认证关口 = Claude 尝试了 CLI/API，遇到了认证错误。** 这不是失败 —— 而是需要人类输入来解锁的关口。
-363: 
-364: **模式：** Claude 尝试自动化 → 认证错误 → 动态创建 checkpoint:human-action → 用户进行认证 → Claude 重试 → 继续执行
-365: 
-366: **关口协议：**
-367: 1. 意识到这不是失败 —— 缺少认证是预料之中的
-368: 2. 停止当前任务 —— 不要反复重试
-369: 3. 动态创建 checkpoint:human-action
-370: 4. 提供确切的认证步骤
-371: 5. 验证认证是否生效
-372: 6. 重试原始任务
-373: 7. 正常继续
-374: 
-375: **关键区别：**
-376: - 预设检查点：“我需要你做 X”（错误 —— Claude 应该自动化）
-377: - 认证关口：“我尝试自动化 X 但需要凭据”（正确 —— 为自动化解锁）
-378: 
-379: </authentication_gates>
-380: 
-381: <automation_reference>
-382: 
-383: **规则：** 如果有 CLI/API，Claude 就去做。永远不要要求人类执行可以自动化的工作。
-384: 
-385: ## 服务 CLI 参考
-386: 
-387: | 服务 | CLI/API | 关键命令 | 认证关口 |
-388: |---------|---------|--------------|-----------|
-389: | Vercel | `vercel` | `--yes`, `env add`, `--prod`, `ls` | `vercel login` |
-390: | Railway | `railway` | `init`, `up`, `variables set` | `railway login` |
-391: | Fly | `fly` | `launch`, `deploy`, `secrets set` | `fly auth login` |
-392: | Stripe | `stripe` + API | `listen`, `trigger`, API calls | .env 中的 API 密钥 |
-393: | Supabase | `supabase` | `init`, `link`, `db push`, `gen types` | `supabase login` |
-394: | Upstash | `upstash` | `redis create`, `redis get` | `upstash auth login` |
-395: | PlanetScale | `pscale` | `database create`, `branch create` | `pscale auth login` |
-396: | GitHub | `gh` | `repo create`, `pr create`, `secret set` | `gh auth login` |
-397: | Node | `npm`/`pnpm` | `install`, `run build`, `test`, `run dev` | 不适用 |
-398: | Xcode | `xcodebuild` | `-project`, `-scheme`, `build`, `test` | 不适用 |
-399: | Convex | `npx convex` | `dev`, `deploy`, `env set`, `env get` | `npx convex login` |
-400: 
-401: ## 环境变量自动化
-402: 
-403: **环境变量文件：** 使用 Write/Edit 工具。永远不要要求人类手动创建 .env。
-404: 
-405: **通过 CLI 设置仪表盘环境变量：**
-406: 
-407: | 平台 | CLI 命令 | 示例 |
-408: |----------|-------------|---------|
-409: | Convex | `npx convex env set` | `npx convex env set OPENAI_API_KEY sk-...` |
-410: | Vercel | `vercel env add` | `vercel env add STRIPE_KEY production` |
-411: | Railway | `railway variables set` | `railway variables set API_KEY=value` |
-412: | Fly | `fly secrets set` | `fly secrets set DATABASE_URL=...` |
-413: | Supabase | `supabase secrets set` | `supabase secrets set MY_SECRET=value` |
-414: 
-415: **秘密收集模式：**
-416: ```xml
-417: <!-- 错误：要求用户在仪表盘添加环境变量 -->
-418: <task type="checkpoint:human-action">
-419:   <action>Add OPENAI_API_KEY to Convex dashboard</action>
-420:   <instructions>Go to dashboard.convex.dev → Settings → Environment Variables → Add</instructions>
-421: </task>
-422: 
-423: <!-- 正确：Claude 询问值，然后通过 CLI 添加 -->
-424: <task type="checkpoint:human-action">
-425:   <action>Provide your OpenAI API key</action>
-426:   <instructions>
-427:     我需要您的 OpenAI API 密钥用于 Convex 后端。
-428:     获取地址：https://platform.openai.com/api-keys
-429:     粘贴密钥（以 sk- 开头）
-430:   </instructions>
-431:   <verification>我将通过 `npx convex env set` 添加并验证</verification>
-432:   <resume-signal>粘贴您的 API 密钥</resume-signal>
-433: </task>
-434: 
-435: <task type="auto">
-436:   <name>Configure OpenAI key in Convex</name>
-437:   <action>Run `npx convex env set OPENAI_API_KEY {user-provided-key}`</action>
-438:   <verify>`npx convex env get OPENAI_API_KEY` 返回密钥（已遮蔽）</verify>
-439: </task>
-440: ```
-441: 
-442: ## 开发服务器自动化
-443: 
-444: | 框架 | 启动命令 | 就绪信号 | 默认 URL |
-445: |-----------|---------------|--------------|-------------|
-446: | Next.js | `npm run dev` | "Ready in" 或 "started server" | http://localhost:3000 |
-447: | Vite | `npm run dev` | "ready in" | http://localhost:5173 |
-448: | Convex | `npx convex dev` | "Convex functions ready" | 不适用 (仅后端) |
-449: | Express | `npm start` | "listening on port" | http://localhost:3000 |
-450: | Django | `python manage.py runserver` | "Starting development server" | http://localhost:8000 |
-451: 
-452: **服务器生命周期：**
-453: ```bash
-454: # 后台运行，捕获 PID
-455: npm run dev &
-456: DEV_SERVER_PID=$!
-457: 
-458: # 等待就绪（最长 30 秒）
-459: timeout 30 bash -c 'until curl -s localhost:3000 > /dev/null 2>&1; do sleep 1; done'
-460: ```
-461: 
-462: **端口冲突：** 杀死旧进程 (`lsof -ti:3000 | xargs kill`) 或使用备用端口 (`--port 3001`)。
-463: 
-464: **服务器在检查点期间保持运行。** 仅在方案完成、切换到生产环境或不同服务需要端口时才杀死进程。
-465: 
-466: ## CLI 安装处理
-467: 
-468: | CLI | 自动安装？ | 命令 |
-469: |-----|---------------|---------|
-470: | npm/pnpm/yarn | 否 —— 询问用户 | 用户选择包管理器 |
-471: | vercel | 是 | `npm i -g vercel` |
-472: | gh (GitHub) | 是 | `brew install gh` (macOS) 或 `apt install gh` (Linux) |
-473: | stripe | 是 | `npm i -g stripe` |
-474: | supabase | 是 | `npm i -g supabase` |
-475: | convex | 否 —— 使用 npx | `npx convex` (无需安装) |
-476: | fly | 是 | `brew install flyctl` 或 curl 安装脚本 |
-477: | railway | 是 | `npm i -g @railway/cli` |
-478: 
-479: **协议：** 尝试命令 → "command not found" → 可自动安装？ → 是：静默安装并重试 → 否：创建检查点请求用户安装。
-480: 
-481: ## 检查点前自动化失败
-482: 
-483: | 失败情况 | 响应 |
-484: |---------|----------|
-485: | 服务器无法启动 | 检查错误，修复问题，重试（不要进入检查点） |
-486: | 端口被占用 | 杀死旧进程或使用备用端口 |
-487: | 缺少依赖 | 运行 `npm install` 并重试 |
-488: | 构建错误 | 先修复错误（这是 Bug，不是检查点问题） |
-489: | 认证错误 | 创建认证关口检查点 |
-490: | 网络超时 | 退避重试，如果持续存在则创建检查点 |
-491: 
-492: **永远不要在验证环境损坏的情况下展示检查点。** 如果 `curl localhost:3000` 失败，不要要求用户“访问 localhost:3000”。
-493: 
-494: ```xml
-495: <!-- 错误：环境损坏的检查点 -->
-496: <task type="checkpoint:human-verify">
-497:   <what-built>Dashboard (server failed to start)</what-built>
-498:   <how-to-verify>Visit http://localhost:3000...</how-to-verify>
-499: </task>
-500: 
-501: <!-- 正确：先修复，再设置检查点 -->
-502: <task type="auto">
-503:   <name>Fix server startup issue</name>
-504:   <action>Investigate error, fix root cause, restart server</action>
-505:   <verify>curl http://localhost:3000 returns 200</verify>
-506: </task>
-507: 
-508: <task type="checkpoint:human-verify">
-509:   <what-built>Dashboard - server running at http://localhost:3000</what-built>
-510:   <how-to-verify>Visit http://localhost:3000/dashboard...</how-to-verify>
-511: </task>
-512: ```
-513: 
-514: ## 可自动化快速参考
-515: 
-516: | 操作 | 可自动化？ | Claude 会做吗？ |
-517: |--------|--------------|-----------------|
-518: | 部署到 Vercel | 是 (`vercel`) | 是 |
-519: | 创建 Stripe webhook | 是 (API) | 是 |
-520: | 编写 .env 文件 | 是 (Write 工具) | 是 |
-521: | 创建 Upstash DB | 是 (`upstash`) | 是 |
-522: | 运行测试 | 是 (`npm test`) | 是 |
-523: | 启动开发服务器 | 是 (`npm run dev`) | 是 |
-524: | 向 Convex 添加环境变量 | 是 (`npx convex env set`) | 是 |
-525: | 向 Vercel 添加环境变量 | 是 (`vercel env add`) | 是 |
-526: | 填充数据库种子 | 是 (CLI/API) | 是 |
-527: | 点击邮件验证链接 | 否 | 否 |
-528: | 输入带有 3DS 的信用卡 | 否 | 否 |
-529: | 在浏览器中完成 OAuth | 否 | 否 |
-530: | 目测 UI 是否正确 | 否 | 否 |
-531: | 测试交互式用户流程 | 否 | 否 |
-532: 
-533: </automation_reference>
-534: 
-535: <writing_guidelines>
-536: 
-537: **应当：**
-538: - 在检查点之前，通过 CLI/API 自动化一切
-539: - 保持具体：“访问 https://myapp.vercel.app” 而不是 “检查部署情况”
-540: - 为验证步骤编号
-541: - 说明预期结果：“您应该看到 X”
-542: - 提供上下文：为什么这个检查点存在
-543: 
-544: **不应当：**
-545: - 要求人类做 Claude 可以自动化的工作 ❌
-546: - 预设知识：“配置常用设置” ❌
-547: - 跳过步骤：“设置数据库”（太模糊） ❌
-548: - 在一个检查点混入多个验证项 ❌
-549: 
-550: **位置：**
-551: - **在自动化完成后** —— 而不是在 Claude 开始工作之前
-552: - **在 UI 构建之后** —— 在声明阶段完成之前
-553: - **在依赖工作之前** —— 在实现之前做出决策
-554: - **在集成点** —— 在配置外部服务之后
-555: 
-556: **错误的位置：** 自动化之前 ❌ | 太频繁 ❌ | 太晚（依赖任务已经需要结果了） ❌
-557: </writing_guidelines>
-558: 
-559: <examples>
-560: 
-561: ### 示例 1：数据库设置（无需检查点）
-562: 
-563: ```xml
-564: <task type="auto">
-565:   <name>Create Upstash Redis database</name>
-566:   <files>.env</files>
-567:   <action>
-568:     1. Run `upstash redis create myapp-cache --region us-east-1`
-569:     2. Capture connection URL from output
-570:     3. Write to .env: UPSTASH_REDIS_URL={url}
-571:     4. Verify connection with test command
-572:   </action>
-573:   <verify>
-574:     - upstash redis list shows database
-575:     - .env contains UPSTASH_REDIS_URL
-576:     - Test connection succeeds
-577:   </verify>
-578:   <done>Redis database created and configured</done>
-579: </task>
-580: 
-581: <!-- 无需检查点 —— Claude 自动化了一切并以编程方式进行了验证 -->
-582: ```
-583: 
-584: ### 示例 2：完整认证流程（最后设一个检查点）
-585: 
-586: ```xml
-587: <task type="auto">
-588:   <name>Create user schema</name>
-589:   <files>src/db/schema.ts</files>
-590:   <action>Define User, Session, Account tables with Drizzle ORM</action>
-591:   <verify>npm run db:generate succeeds</verify>
-592: </task>
-593: 
-594: <task type="auto">
-595:   <name>Create auth API routes</name>
-596:   <files>src/app/api/auth/[...nextauth]/route.ts</files>
-597:   <action>Set up NextAuth with GitHub provider, JWT strategy</action>
-598:   <verify>TypeScript compiles, no errors</verify>
-599: </task>
-600: 
-601: <task type="auto">
-602:   <name>Create login UI</name>
-603:   <files>src/app/login/page.tsx, src/components/LoginButton.tsx</files>
-604:   <action>Create login page with GitHub OAuth button</action>
-605:   <verify>npm run build succeeds</verify>
-606: </task>
-607: 
-608: <task type="auto">
-609:   <name>Start dev server for auth testing</name>
-610:   <action>Run `npm run dev` in background, wait for ready signal</action>
-611:   <verify>curl http://localhost:3000 returns 200</verify>
-612:   <done>Dev server running at http://localhost:3000</done>
-613: </task>
-614: 
-615: <!-- 最后设一个检查点验证完整流程 -->
-616: <task type="checkpoint:human-verify" gate="blocking">
-617:   <what-built>Complete authentication flow - dev server running at http://localhost:3000</what-built>
-618:   <how-to-verify>
-619:     1. 访问：http://localhost:3000/login
-620:     2. 点击 "Sign in with GitHub"
-621:     3. 完成 GitHub OAuth 流程
-622:     4. 验证：重定向到 /dashboard，显示用户名
-623:     5. 刷新页面：会话持久化
-624:     6. 点击退出：会话已清除
-625:   </how-to-verify>
-626:   <resume-signal>输入 "approved" 或描述问题</resume-signal>
-627: </task>
-628: ```
-629: </examples>
-630: 
-631: <anti_patterns>
-632: 
-633: ### ❌ 坏做法：要求用户启动开发服务器
-634: 
-635: ```xml
-636: <task type="checkpoint:human-verify" gate="blocking">
-637:   <what-built>Dashboard component</what-built>
-638:   <how-to-verify>
-639:     1. Run: npm run dev
-640:     2. Visit: http://localhost:3000/dashboard
-641:     3. Check layout is correct
-642:   </how-to-verify>
-643: </task>
-644: ```
-645: 
-646: **为什么坏：** Claude 可以运行 `npm run dev`。用户应该只负责访问 URL，而不是执行命令。
-647: 
-648: ### ✅ 好做法：Claude 启动服务器，用户访问
-649: 
-650: ```xml
-651: <task type="auto">
-652:   <name>Start dev server</name>
-653:   <action>Run `npm run dev` in background</action>
-654:   <verify>curl localhost:3000 returns 200</verify>
-655: </task>
-656: 
-657: <task type="checkpoint:human-verify" gate="blocking">
-658:   <what-built>Dashboard at http://localhost:3000/dashboard (server running)</what-built>
-659:   <how-to-verify>
-660:     访问 http://localhost:3000/dashboard 并验证：
-661:     1. 布局符合设计
-662:     2. 没有控制台错误
-663:   </how-to-verify>
-664: </task>
-665: ```
-666: 
-667: ### ❌ 坏做法：要求人工部署 / ✅ 好做法：Claude 自动化
-668: 
-669: ```xml
-670: <!-- 坏做法：要求用户通过仪表盘部署 -->
-671: <task type="checkpoint:human-action" gate="blocking">
-672:   <action>Deploy to Vercel</action>
-673:   <instructions>Visit vercel.com/new → Import repo → Click Deploy → Copy URL</instructions>
-674: </task>
-675: 
-676: <!-- 好做法：Claude 部署，用户验证 -->
-677: <task type="auto">
-678:   <name>Deploy to Vercel</name>
-679:   <action>Run `vercel --yes`. Capture URL.</action>
-680:   <verify>vercel ls shows deployment, curl returns 200</verify>
-681: </task>
-682: 
-683: <task type="checkpoint:human-verify">
-684:   <what-built>Deployed to {url}</what-built>
-685:   <how-to-verify>访问 {url}，检查首页是否加载</how-to-verify>
-686:   <resume-signal>输入 "approved"</resume-signal>
-687: </task>
-688: ```
-689: 
-690: ### ❌ 坏做法：检查点过多 / ✅ 好做法：单个检查点
-691: 
-692: ```xml
-693: <!-- 坏做法：每个任务后都设检查点 -->
-694: <task type="auto">Create schema</task>
-695: <task type="checkpoint:human-verify">Check schema</task>
-696: <task type="auto">Create API route</task>
-697: <task type="checkpoint:human-verify">Check API</task>
-698: <task type="auto">Create UI form</task>
-699: <task type="checkpoint:human-verify">Check form</task>
-700: 
-701: <!-- 好做法：最后设一个检查点 -->
-702: <task type="auto">Create schema</task>
-703: <task type="auto">Create API route</task>
-704: <task type="auto">Create UI form</task>
-705: 
-706: <task type="checkpoint:human-verify">
-707:   <what-built>Complete auth flow (schema + API + UI)</what-built>
-708:   <how-to-verify>测试完整流程：注册、登录、访问受保护页面</how-to-verify>
-709:   <resume-signal>输入 "approved"</resume-signal>
-710: </task>
-711: ```
-712: 
-713: ### ❌ 坏做法：验证内容模糊 / ✅ 好做法：具体步骤
-714: 
-715: ```xml
-716: <!-- 坏做法 -->
-717: <task type="checkpoint:human-verify">
-718:   <what-built>Dashboard</what-built>
-719:   <how-to-verify>Check it works</how-to-verify>
-720: </task>
-721: 
-722: <!-- 好做法 -->
-723: <task type="checkpoint:human-verify">
-724:   <what-built>Responsive dashboard - server running at http://localhost:3000</what-built>
-725:   <how-to-verify>
-726:     访问 http://localhost:3000/dashboard 并验证：
-727:     1. 桌面端 (>1024px)：侧边栏可见，内容区域填充剩余空间
-728:     2. 平板端 (768px)：侧边栏折叠为图标
-729:     3. 移动端 (375px)：侧边栏隐藏，页眉出现汉堡菜单
-730:     4. 任何尺寸下都没有水平滚动
-731:   </how-to-verify>
-732:   <resume-signal>输入 "approved" 或描述布局问题</resume-signal>
-733: </task>
-734: ```
-735: 
-736: ### ❌ 坏做法：要求用户运行 CLI 命令
-737: 
-738: ```xml
-739: <task type="checkpoint:human-action">
-740:   <action>Run database migrations</action>
-741:   <instructions>Run: npx prisma migrate deploy && npx prisma db seed</instructions>
-742: </task>
-743: ```
-744: 
-745: **为什么坏：** Claude 可以运行这些命令。用户永远不应该执行 CLI 命令。
-746: 
-747: ### ❌ 坏做法：要求用户在服务之间复制值
-748: 
-749: ```xml
-750: <task type="checkpoint:human-action">
-751:   <action>Configure webhook URL in Stripe</action>
-752:   <instructions>Copy deployment URL → Stripe Dashboard → Webhooks → Add endpoint → Copy secret → Add to .env</instructions>
-753: </task>
-754: ```
-755: 
-756: **为什么坏：** Stripe 有 API。Claude 应该通过 API 创建 Webhook 并直接写入 .env。
-757: 
-758: </anti_patterns>
-759: 
-760: <summary>
-761: 
-762: 检查点为验证和决策形式化了“人在回路”的环节，而不是用于手动工作。
-763: 
-764: **黄金法则：** 如果 Claude 可以自动化它，Claude 必须自动化它。
-765: 
-766: **检查点优先级：**
-767: 1. **checkpoint:human-verify** (90%) —— Claude 自动化了一切，人类确认视觉/功能的正确性
-768: 2. **checkpoint:decision** (9%) —— 人类做出架构/技术选择
-769: 3. **checkpoint:human-action** (1%) —— 确实无法避免且没有 API/CLI 的手动步骤
-770: 
-771: **何时不使用检查点：**
-772: - Claude 可以通过编程验证的事项（测试、构建）
-773: - 文件操作（Claude 可以读取文件）
-774: - 代码正确性（测试和静态分析）
-775: - 任何可通过 CLI/API 自动化的事项
-776: </summary>
+<overview>
+计划自主执行。检查点 (Checkpoints) 将需要人工验证或决策的交互点正式化。
+
+**核心原则：** Claude 通过 CLI/API 自动化一切。检查点是为了验证和决策，而不是为了手动工作。
+
+**黄金法则：**
+1. **如果 Claude 能运行，就由 Claude 运行** —— 绝不要求用户执行 CLI 命令、启动服务器或运行构建。
+2. **Claude 负责搭建验证环境** —— 启动开发服务器、播种数据库、配置环境变量。
+3. **用户仅执行需要人工判断的操作** —— 视觉检查、UX 评估、“这感觉对吗？”
+4. **机密信息来自用户，自动化来自 Claude** —— 索要 API 密钥，然后 Claude 通过 CLI 使用它们。
+5. **自动模式跳过验证/决策检查点** —— 当配置中 `workflow._auto_chain_active` 或 `workflow.auto_advance` 为 true 时：human-verify 自动批准，decision 自动选择第一个选项，human-action 仍会停止（身份验证关卡无法自动化）。
+</overview>
+
+<checkpoint_types>
+
+<type name="human-verify">
+## checkpoint:human-verify (最常见 —— 90%)
+
+**何时使用：** Claude 完成了自动化工作，人工确认其工作正常。
+
+**用于：**
+- 视觉 UI 检查（布局、样式、响应能力）
+- 交互流（点击向导、测试用户流）
+- 功能验证（功能按预期工作）
+- 音频/视频播放质量
+- 动画流畅度
+- 无障碍 (Accessibility) 测试
+
+**结构：**
+```xml
+<task type="checkpoint:human-verify" gate="blocking">
+  <what-built>[Claude 自动化并部署/构建的内容]</what-built>
+  <how-to-verify>
+    [确切的测试步骤 —— URL、命令、预期行为]
+  </how-to-verify>
+  <resume-signal>[如何继续 —— "approved", "yes", 或描述问题]</resume-signal>
+</task>
+```
+
+**示例：UI 组件（展示关键模式：Claude 在检查点之前启动服务器）**
+```xml
+<task type="auto">
+  <name>构建响应式仪表盘布局</name>
+  <files>src/components/Dashboard.tsx, src/app/dashboard/page.tsx</files>
+  <action>创建带有侧边栏、页眉和内容区域的仪表盘。使用 Tailwind 响应式类处理移动端。</action>
+  <verify>npm run build 成功，无 TypeScript 错误</verify>
+  <done>仪表盘组件构建无误</done>
+</task>
+
+<task type="auto">
+  <name>启动开发服务器进行验证</name>
+  <action>在后台运行 `npm run dev`，等待 "ready" 消息，捕获端口</action>
+  <verify>fetch http://localhost:3000 返回 200</verify>
+  <done>开发服务器运行在 http://localhost:3000</done>
+</task>
+
+<task type="checkpoint:human-verify" gate="blocking">
+  <what-built>响应式仪表盘布局 —— 开发服务器运行在 http://localhost:3000</what-built>
+  <how-to-verify>
+    访问 http://localhost:3000/dashboard 并验证：
+    1. 桌面端 (>1024px)：侧边栏在左，内容在右，页眉在顶
+    2. 平板端 (768px)：侧边栏折叠为汉堡菜单
+    3. 移动端 (375px)：单栏布局，出现底部导航栏
+    4. 任何尺寸下均无布局偏移或水平滚动
+  </how-to-verify>
+  <resume-signal>输入 "approved" 或描述布局问题</resume-signal>
+</task>
+```
+
+**示例：Xcode 构建**
+```xml
+<task type="auto">
+  <name>使用 Xcode 构建 macOS 应用</name>
+  <files>App.xcodeproj, Sources/</files>
+  <action>运行 `xcodebuild -project App.xcodeproj -scheme App build`。检查输出中的编译错误。</action>
+  <verify>构建输出包含 "BUILD SUCCEEDED"，无错误</verify>
+  <done>应用构建成功</done>
+</task>
+
+<task type="checkpoint:human-verify" gate="blocking">
+  <what-built>构建的 macOS 应用位于 DerivedData/Build/Products/Debug/App.app</what-built>
+  <how-to-verify>
+    打开 App.app 并测试：
+    - 应用启动无崩溃
+    - 菜单栏图标出现
+    - 偏好设置窗口正确打开
+    - 无视觉故障或布局问题
+  </how-to-verify>
+  <resume-signal>输入 "approved" 或描述问题</resume-signal>
+</task>
+```
+</type>
+
+<type name="decision">
+## checkpoint:decision (9%)
+
+**何时使用：** 人工必须做出影响实现方向的选择。
+
+**用于：**
+- 技术选型（哪个认证提供商，哪个数据库）
+- 架构决策（单体仓库 vs 独立仓库）
+- 设计选择（配色方案、布局方案）
+- 功能优先级排序（构建哪个变体）
+- 数据模型决策（架构结构）
+
+**结构：**
+```xml
+<task type="checkpoint:decision" gate="blocking">
+  <decision>[正在决定的内容]</decision>
+  <context>[为什么此决策很重要]</context>
+  <options>
+    <option id="option-a">
+      <name>[选项名称]</name>
+      <pros>[优点]</pros>
+      <cons>[折衷/缺点]</cons>
+    </option>
+    <option id="option-b">
+      <name>[选项名称]</name>
+      <pros>[优点]</pros>
+      <cons>[折衷/缺点]</cons>
+    </option>
+  </options>
+  <resume-signal>[如何指示选择]</resume-signal>
+</task>
+```
+
+**示例：身份验证提供商选择**
+```xml
+<task type="checkpoint:decision" gate="blocking">
+  <decision>选择身份验证提供商</decision>
+  <context>
+    应用需要用户身份验证。有三个具有不同权衡的可靠选项。
+  </context>
+  <options>
+    <option id="supabase">
+      <name>Supabase Auth</name>
+      <pros>与我们正在使用的 Supabase 数据库集成，慷慨的免费额度，行级安全集成</pros>
+      <cons>UI 可定制性较低，绑定到 Supabase 生态系统</cons>
+    </option>
+    <option id="clerk">
+      <name>Clerk</name>
+      <pros>精美的预置 UI，最佳的开发者体验，卓越的文档</pros>
+      <cons>MAU 超过 10k 后收费，供应商锁定</cons>
+    </option>
+    <option id="nextauth">
+      <name>NextAuth.js</name>
+      <pros>免费、自托管、最大的控制权、广泛采用</pros>
+      <cons>更多的设置工作，需自行管理安全更新，UI 需要自行设计</cons>
+    </option>
+  </options>
+  <resume-signal>选择: supabase, clerk, 或 nextauth</resume-signal>
+</task>
+```
+
+**示例：数据库选择**
+```xml
+<task type="checkpoint:decision" gate="blocking">
+  <decision>为用户数据选择数据库</decision>
+  <context>
+    应用需要为用户、会话和用户生成内容提供持久化存储。
+    预期规模：第一年 10k 用户，100 万条记录。
+  </context>
+  <options>
+    <option id="supabase">
+      <name>Supabase (Postgres)</name>
+      <pros>完整的 SQL、慷慨的免费额度、内置身份验证、实时订阅</pros>
+      <cons>实时功能的供应商锁定，比原生 Postgres 灵活性稍低</cons>
+    </option>
+    <option id="planetscale">
+      <name>PlanetScale (MySQL)</name>
+      <pros>无服务器扩展、分支工作流、卓越的开发者体验</pros>
+      <cons>使用 MySQL 而非 Postgres，免费额度无外键支持</cons>
+    </option>
+    <option id="convex">
+      <name>Convex</name>
+      <pros>默认实时、TypeScript 原生、自动缓存</pros>
+      <cons>较新的平台，不同的思维模型，SQL 灵活性较低</cons>
+    </option>
+  </options>
+  <resume-signal>选择: supabase, planetscale, 或 convex</resume-signal>
+</task>
+```
+</type>
+
+<type name="human-action">
+## checkpoint:human-action (1% —— 罕见)
+
+**何时使用：** 操作没有 CLI/API 且需要仅限人工的交互，或者 Claude 在自动化过程中遇到了身份验证关卡。
+
+**仅用于：**
+- **身份验证关卡** —— Claude 尝试了 CLI/API 但需要凭据（这**不是**失败）
+- 邮件验证链接（点击邮件）
+- 短信 2FA 代码（手机验证）
+- 手动账号批准（平台需要人工审核）
+- 信用卡 3D 安全流程（基于 Web 的支付授权）
+- OAuth 应用批准（基于 Web 的批准）
+
+**请勿用于预先计划的手动工作：**
+- 部署（使用 CLI —— 如果需要则使用身份验证关卡）
+- 创建 Webhook/数据库（使用 API/CLI —— 如果需要则使用身份验证关卡）
+- 运行构建/测试（使用 Bash 工具）
+- 创建文件（使用 Write 工具）
+
+**结构：**
+```xml
+<task type="checkpoint:human-action" gate="blocking">
+  <action>[人工必须执行的操作 —— Claude 已经完成了所有可自动化的工作]</action>
+  <instructions>
+    [Claude 已经自动化的内容]
+    [需要人工执行的一件事]
+  </instructions>
+  <verification>[Claude 之后可以检查的内容]</verification>
+  <resume-signal>[如何继续]</resume-signal>
+</task>
+```
+
+**示例：邮件验证**
+```xml
+<task type="auto">
+  <name>通过 API 创建 SendGrid 账号</name>
+  <action>使用 SendGrid API 使用提供的邮箱创建子用户账号。请求发送验证邮件。</action>
+  <verify>API 返回 201，账号已创建</verify>
+  <done>账号已创建，验证邮件已发送</done>
+</task>
+
+<task type="checkpoint:human-action" gate="blocking">
+  <action>完成 SendGrid 账号的邮件验证</action>
+  <instructions>
+    我已创建账号并请求了验证邮件。
+    请检查您的收件箱中的 SendGrid 验证链接并点击。
+  </instructions>
+  <verification>SendGrid API 密钥有效：curl 测试通过</verification>
+  <resume-signal>邮件验证后输入 "done"</resume-signal>
+</task>
+```
+
+**示例：身份验证关卡 (动态检查点)**
+```xml
+<task type="auto">
+  <name>部署到 Vercel</name>
+  <files>.vercel/, vercel.json</files>
+  <action>运行 `vercel --yes` 进行部署</action>
+  <verify>vercel ls 显示部署，fetch 返回 200</verify>
+</task>
+
+<!-- 如果 vercel 返回 "Error: Not authenticated"，Claude 现场创建检查点 -->
+
+<task type="checkpoint:human-action" gate="blocking">
+  <action>验证 Vercel CLI 以便我继续部署</action>
+  <instructions>
+    我尝试进行部署，但遇到了身份验证错误。
+    请运行：vercel login
+    这将打开您的浏览器 —— 请完成身份验证流程。
+  </instructions>
+  <verification>vercel whoami 返回您的账号邮箱</verification>
+  <resume-signal>身份验证后输入 "done"</resume-signal>
+</task>
+
+<!-- 身份验证后，Claude 重试部署 -->
+
+<task type="auto">
+  <name>重试 Vercel 部署</name>
+  <action>运行 `vercel --yes`（现已验证身份）</action>
+  <verify>vercel ls 显示部署，fetch 返回 200</verify>
+</task>
+```
+
+**关键区别：** 身份验证关卡是在 Claude 遇到身份验证错误时动态创建的。它们**不是**预先计划好的 —— Claude 优先执行自动化，只有在被阻塞时才会索要凭据。
+</type>
+</checkpoint_types>
+
+<execution_protocol>
+
+当 Claude 遇到 `type="checkpoint:*"` 时：
+
+1. **立即停止** —— 不要继续执行下一个任务。
+2. **清晰显示检查点**，使用下面的格式。
+3. **等待用户回复** —— 不要幻想任务已完成。
+4. **尽可能进行验证** —— 检查文件、运行测试，或执行任何指定的操作。
+5. **恢复执行** —— 仅在确认后继续执行下一个任务。
+
+**对于 checkpoint:human-verify：**
+```
+╔═══════════════════════════════════════════════════════╗
+║  检查点：需要验证                                      ║
+╚═══════════════════════════════════════════════════════╝
+
+进度：5/8 任务已完成
+任务：响应式仪表盘布局
+
+已构建：响应式仪表盘位于 /dashboard
+
+如何验证：
+  1. 访问：http://localhost:3000/dashboard
+  2. 桌面端 (>1024px)：侧边栏可见，内容填充剩余空间
+  3. 平板端 (768px)：侧边栏折叠为图标
+  4. 移动端 (375px)：侧边栏隐藏，出现汉堡菜单
+
+────────────────────────────────────────────────────────
+→ 您的操作：输入 "approved" 或描述问题
+────────────────────────────────────────────────────────
+```
+
+**对于 checkpoint:decision：**
+```
+╔═══════════════════════════════════════════════════════╗
+║  检查点：需要决策                                      ║
+╚═══════════════════════════════════════════════════════╝
+
+进度：2/6 任务已完成
+任务：选择身份验证提供商
+
+决策：我们应该使用哪个身份验证提供商？
+
+背景：需要用户身份验证。有三个具有不同权衡的选项。
+
+选项：
+  1. supabase - 与我们的数据库集成，有免费额度
+     优点：行级安全集成，慷慨的免费额度
+     缺点：UI 可定制性较低，生态系统锁定
+
+  2. clerk - 最佳开发者体验，用户量超过 10k 后收费
+     优点：精美的预置 UI，卓越的文档
+     缺点：供应商锁定，规模化后的定价
+
+  3. nextauth - 自托管，最大的控制权
+     优点：免费，无供应商锁定，广泛采用
+     缺点：更多的设置工作，需自行管理安全更新
+
+────────────────────────────────────────────────────────
+→ 您的操作：选择 supabase, clerk, 或 nextauth
+────────────────────────────────────────────────────────
+```
+
+**对于 checkpoint:human-action：**
+```
+╔═══════════════════════════════════════════════════════╗
+║  检查点：需要操作                                      ║
+╚═══════════════════════════════════════════════════════╝
+
+进度：3/8 任务已完成
+任务：部署到 Vercel
+
+尝试操作：vercel --yes
+错误：未经验证。请运行 'vercel login'
+
+您需要执行的操作：
+  1. 运行：vercel login
+  2. 在浏览器打开时完成身份验证
+  3. 完成后返回此处
+
+我将验证：vercel whoami 返回您的账号
+
+────────────────────────────────────────────────────────
+→ 您的操作：验证后输入 "done"
+────────────────────────────────────────────────────────
+```
+</execution_protocol>
+
+<authentication_gates>
+
+**身份验证关卡 = Claude 尝试了 CLI/API，遇到了身份验证错误。** 这不是失败 —— 而是需要人工输入才能解除阻塞的关卡。
+
+**模式：** Claude 尝试自动化 → 身份验证错误 → 创建 checkpoint:human-action → 用户进行身份验证 → Claude 重试 → 继续。
+
+**关卡协议：**
+1. 识别出这不是失败 —— 缺失身份验证是预料之中的。
+2. 停止当前任务 —— 不要反复重试。
+3. 动态创建 checkpoint:human-action。
+4. 提供确切的身份验证步骤。
+5. 验证身份验证是否生效。
+6. 重试原始任务。
+7. 正常继续。
+
+**关键区别：**
+- 预先计划的检查点：“我需要你做 X”（错误 —— Claude 应该自动化）。
+- 身份验证关卡：“我尝试自动执行 X，但需要凭据”（正确 —— 为自动化解除阻塞）。
+
+</authentication_gates>
+
+<automation_reference>
+
+**原则：** 如果有 CLI/API，就由 Claude 来做。绝不要求人工执行可自动化的工作。
+
+## 服务 CLI 参考
+
+| 服务 | CLI/API | 关键命令 | 身份验证关卡 |
+|---------|---------|--------------|-----------|
+| Vercel | `vercel` | `--yes`, `env add`, `--prod`, `ls` | `vercel login` |
+| Railway | `railway` | `init`, `up`, `variables set` | `railway login` |
+| Fly | `fly` | `launch`, `deploy`, `secrets set` | `fly auth login` |
+| Stripe | `stripe` + API | `listen`, `trigger`, API 调用 | .env 中的 API 密钥 |
+| Supabase | `supabase` | `init`, `link`, `db push`, `gen types` | `supabase login` |
+| Upstash | `upstash` | `redis create`, `redis get` | `upstash auth login` |
+| PlanetScale | `pscale` | `database create`, `branch create` | `pscale auth login` |
+| GitHub | `gh` | `repo create`, `pr create`, `secret set` | `gh auth login` |
+| Node | `npm`/`pnpm` | `install`, `run build`, `test`, `run dev` | 不适用 |
+| Xcode | `xcodebuild` | `-project`, `-scheme`, `build`, `test` | 不适用 |
+| Convex | `npx convex` | `dev`, `deploy`, `env set`, `env get` | `npx convex login` |
+
+## 环境变量自动化
+
+**环境文件：** 使用 Write/Edit 工具。绝不要求人工手动创建 .env。
+
+**通过 CLI 设置控制面板环境变量：**
+
+| 平台 | CLI 命令 | 示例 |
+|----------|-------------|---------|
+| Convex | `npx convex env set` | `npx convex env set OPENAI_API_KEY sk-...` |
+| Vercel | `vercel env add` | `vercel env add STRIPE_KEY production` |
+| Railway | `railway variables set` | `railway variables set API_KEY=value` |
+| Fly | `fly secrets set` | `fly secrets set DATABASE_URL=...` |
+| Supabase | `supabase secrets set` | `supabase secrets set MY_SECRET=value` |
+
+**机密信息收集模式：**
+```xml
+<!-- 错误：要求用户在控制面板中添加环境变量 -->
+<task type="checkpoint:human-action">
+  <action>在 Convex 控制面板中添加 OPENAI_API_KEY</action>
+  <instructions>前往 dashboard.convex.dev → Settings → Environment Variables → Add</instructions>
+</task>
+
+<!-- 正确：Claude 索要值，然后通过 CLI 添加 -->
+<task type="checkpoint:human-action">
+  <action>提供您的 OpenAI API 密钥</action>
+  <instructions>
+    我需要您的 OpenAI API 密钥用于 Convex 后端。
+    请从此处获取：https://platform.openai.com/api-keys
+    并粘贴密钥（以 sk- 开头）
+  </instructions>
+  <verification>我将通过 `npx convex env set` 添加并验证</verification>
+  <resume-signal>粘贴您的 API 密钥</resume-signal>
+</task>
+
+<task type="auto">
+  <name>在 Convex 中配置 OpenAI 密钥</name>
+  <action>运行 `npx convex env set OPENAI_API_KEY {user-provided-key}`</action>
+  <verify>`npx convex env get OPENAI_API_KEY` 返回密钥（已屏蔽部分内容）</verify>
+</task>
+```
+
+## 开发服务器自动化
+
+| 框架 | 启动命令 | 就绪信号 | 默认 URL |
+|-----------|---------------|--------------|-------------|
+| Next.js | `npm run dev` | "Ready in" 或 "started server" | http://localhost:3000 |
+| Vite | `npm run dev` | "ready in" | http://localhost:5173 |
+| Convex | `npx convex dev` | "Convex functions ready" | 不适用（仅后端） |
+| Express | `npm start` | "listening on port" | http://localhost:3000 |
+| Django | `python manage.py runserver` | "Starting development server" | http://localhost:8000 |
+
+**服务器生命周期：**
+```bash
+# 后台运行，捕获 PID
+npm run dev &
+DEV_SERVER_PID=$!
+
+# 等待就绪（最长 30 秒）—— 使用 node fetch 以保证跨平台兼容性
+timeout 30 bash -c 'until node -e "fetch(\"http://localhost:3000\").then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))" 2>/dev/null; do sleep 1; done'
+```
+
+**端口冲突：** 杀死旧进程 (`lsof -ti:3000 | xargs kill`) 或使用备选端口 (`--port 3001`)。
+
+**服务器在检查点期间保持运行。** 仅在计划完成、切换到生产环境或另一个服务需要端口时才杀死进程。
+
+## CLI 安装处理
+
+| CLI | 自动安装？ | 命令 |
+|-----|---------------|---------|
+| npm/pnpm/yarn | 否 —— 询问用户 | 用户选择包管理器 |
+| vercel | 是 | `npm i -g vercel` |
+| gh (GitHub) | 是 | `brew install gh` (macOS) 或 `apt install gh` (Linux) |
+| stripe | 是 | `npm i -g stripe` |
+| supabase | 是 | `npm i -g supabase` |
+| convex | 否 —— 使用 npx | `npx convex` (无需安装) |
+| fly | 是 | `brew install flyctl` 或使用 curl 安装程序 |
+| railway | 是 | `npm i -g @railway/cli` |
+
+**协议：** 尝试命令 → “未找到命令” → 可自动安装？ → 是：静默安装并重试 → 否：创建检查点要求用户安装。
+
+## 检查点前的自动化失败
+
+| 失败情况 | 响应方式 |
+|---------|----------|
+| 服务器无法启动 | 检查错误、修复问题并重试（不要进入检查点） |
+| 端口被占用 | 杀死旧进程或使用备选端口 |
+| 缺失依赖 | 运行 `npm install` 并重试 |
+| 构建错误 | 首先修复错误（这是 bug，而非检查点问题） |
+| 身份验证错误 | 创建身份验证关卡检查点 |
+| 网络超时 | 使用指数退避重试，如果持续超时则进入检查点 |
+
+**绝不要呈现带有损坏验证环境的检查点。** 如果本地服务器没有响应，请不要要求用户“访问 localhost:3000”。
+
+> **跨平台说明：** 使用 `node -e "fetch('http://localhost:3000').then(r=>console.log(r.status))"` 代替 `curl` 进行健康检查。由于 SSL/路径转换问题，`curl` 在 Windows MSYS/Git Bash 上往往无法正常工作。
+
+```xml
+<!-- 错误：带有损坏环境的检查点 -->
+<task type="checkpoint:human-verify">
+  <what-built>仪表盘（服务器启动失败）</what-built>
+  <how-to-verify>访问 http://localhost:3000...</how-to-verify>
+</task>
+
+<!-- 正确：先修复，再进入检查点 -->
+<task type="auto">
+  <name>修复服务器启动问题</name>
+  <action>调查错误、修复根本原因并重启服务器</action>
+  <verify>fetch http://localhost:3000 返回 200</verify>
+</task>
+
+<task type="checkpoint:human-verify">
+  <what-built>仪表盘 —— 服务器运行在 http://localhost:3000</what-built>
+  <how-to-verify>访问 http://localhost:3000/dashboard...</how-to-verify>
+</task>
+```
+
+## 可自动化项快速参考
+
+| 操作 | 可自动化？ | Claude 是否执行？ |
+|--------|--------------|-----------------|
+| 部署到 Vercel | 是 (`vercel`) | 是 |
+| 创建 Stripe Webhook | 是 (API) | 是 |
+| 编写 .env 文件 | 是 (Write 工具) | 是 |
+| 创建 Upstash 数据库 | 是 (`upstash`) | 是 |
+| 运行测试 | 是 (`npm test`) | 是 |
+| 启动开发服务器 | 是 (`npm run dev`) | 是 |
+| 向 Convex 添加环境变量 | 是 (`npx convex env set`) | 是 |
+| 向 Vercel 添加环境变量 | 是 (`vercel env add`) | 是 |
+| 播种数据库 | 是 (CLI/API) | 是 |
+| 点击邮件验证链接 | 否 | 否 |
+| 输入带 3DS 的信用卡信息 | 否 | 否 |
+| 在浏览器中完成 OAuth | 否 | 否 |
+| 视觉验证 UI 看起来是否正确 | 否 | 否 |
+| 测试交互式用户流 | 否 | 否 |
+
+</automation_reference>
+
+<writing_guidelines>
+
+**应当：**
+- 在进入检查点之前，通过 CLI/API 自动化一切。
+- 描述具体：“访问 https://myapp.vercel.app”而非“检查部署情况”。
+- 为验证步骤编号。
+- 说明预期结果：“你应该看到 X”。
+- 提供背景信息：说明为什么存在此检查点。
+
+**不应：**
+- 要求人工执行 Claude 可以自动化的工作。❌
+- 凭空假设：“按照惯常设置进行配置”。❌
+- 跳过步骤：“设置数据库”（太模糊）。❌
+- 在一个检查点中混合多个验证项。❌
+
+**放置位置：**
+- **在自动化完成后** —— 而不是在 Claude 执行工作之前。
+- **在 UI 构建完成后** —— 在声明阶段完成之前。
+- **在依赖性工作之前** —— 在实现之前做出决策。
+- **在集成点处** —— 在配置完外部服务之后。
+
+**糟糕的放置：** 自动化之前 ❌ | 太频繁 ❌ | 太晚（依赖性任务已经需要该结果了） ❌
+</writing_guidelines>
+
+<examples>
+
+### 示例 1：数据库设置（无需检查点）
+
+```xml
+<task type="auto">
+  <name>创建 Upstash Redis 数据库</name>
+  <files>.env</files>
+  <action>
+    1. 运行 `upstash redis create myapp-cache --region us-east-1`
+    2. 从输出中获取连接 URL
+    3. 写入 .env：UPSTASH_REDIS_URL={url}
+    4. 使用测试命令验证连接
+  </action>
+  <verify>
+    - upstash redis list 显示数据库
+    - .env 包含 UPSTASH_REDIS_URL
+    - 测试连接成功
+  </verify>
+  <done>Redis 数据库已创建并配置</done>
+</task>
+
+<!-- 无需检查点 —— Claude 自动化了一切并通过程序化方式进行了验证 -->
+```
+
+### 示例 2：完整的身份验证流（仅在结束时有一个检查点）
+
+```xml
+<task type="auto">
+  <name>创建用户架构</name>
+  <files>src/db/schema.ts</files>
+  <action>使用 Drizzle ORM 定义 User, Session, Account 表</action>
+  <verify>npm run db:generate 成功</verify>
+</task>
+
+<task type="auto">
+  <name>创建身份验证 API 路由</name>
+  <files>src/app/api/auth/[...nextauth]/route.ts</files>
+  <action>使用 GitHub 提供商和 JWT 策略设置 NextAuth</action>
+  <verify>TypeScript 编译通过，无错误</verify>
+</task>
+
+<task type="auto">
+  <name>创建登录 UI</name>
+  <files>src/app/login/page.tsx, src/components/LoginButton.tsx</files>
+  <action>创建带有 GitHub OAuth 按钮的登录页面</action>
+  <verify>npm run build 成功</verify>
+</task>
+
+<task type="auto">
+  <name>启动开发服务器进行身份验证测试</name>
+  <action>在后台运行 `npm run dev`，等待就绪信号</action>
+  <verify>fetch http://localhost:3000 返回 200</verify>
+  <done>开发服务器运行在 http://localhost:3000</done>
+</task>
+
+<!-- 结束时的一个检查点验证整个流程 -->
+<task type="checkpoint:human-verify" gate="blocking">
+  <what-built>完整的身份验证流 —— 开发服务器运行在 http://localhost:3000</what-built>
+  <how-to-verify>
+    1. 访问：http://localhost:3000/login
+    2. 点击 "Sign in with GitHub"
+    3. 完成 GitHub OAuth 流程
+    4. 验证：重定向到 /dashboard，显示用户名
+    5. 刷新页面：会话持久化
+    6. 点击注销：会话清除
+  </how-to-verify>
+  <resume-signal>输入 "approved" 或描述问题</resume-signal>
+</task>
+```
+</examples>
+
+<anti_patterns>
+
+### ❌ 错误：要求用户启动开发服务器
+
+```xml
+<task type="checkpoint:human-verify" gate="blocking">
+  <what-built>仪表盘组件</what-built>
+  <how-to-verify>
+    1. 运行：npm run dev
+    2. 访问：http://localhost:3000/dashboard
+    3. 检查布局是否正确
+  </how-to-verify>
+</task>
+```
+
+**为什么错误：** Claude 可以运行 `npm run dev`。用户应该只访问 URL，不执行命令。
+
+### ✅ 正确：Claude 启动服务器，用户访问
+
+```xml
+<task type="auto">
+  <name>启动开发服务器</name>
+  <action>在后台运行 `npm run dev`</action>
+  <verify>fetch http://localhost:3000 返回 200</verify>
+</task>
+
+<task type="checkpoint:human-verify" gate="blocking">
+  <what-built>位于 http://localhost:3000/dashboard 的仪表盘（服务器正在运行）</what-built>
+  <how-to-verify>
+    访问 http://localhost:3000/dashboard 并验证：
+    1. 布局符合设计
+    2. 无控制台错误
+  </how-to-verify>
+</task>
+```
+
+### ❌ 错误：要求人工进行部署 / ✅ 正确：Claude 自动化执行
+
+```xml
+<!-- 错误：要求用户通过控制面板进行部署 -->
+<task type="checkpoint:human-action" gate="blocking">
+  <action>部署到 Vercel</action>
+  <instructions>访问 vercel.com/new → 导入仓库 → 点击 Deploy → 复制 URL</instructions>
+</task>
+
+<!-- 正确：Claude 部署，用户验证 -->
+<task type="auto">
+  <name>部署到 Vercel</name>
+  <action>运行 `vercel --yes`。捕获 URL。</action>
+  <verify>vercel ls 显示部署，fetch 返回 200</verify>
+</task>
+
+<task type="checkpoint:human-verify">
+  <what-built>已部署到 {url}</what-built>
+  <how-to-verify>访问 {url}，检查首页是否加载</how-to-verify>
+  <resume-signal>输入 "approved"</resume-signal>
+</task>
+```
+
+### ❌ 错误：检查点过多 / ✅ 正确：单个检查点
+
+```xml
+<!-- 错误：每个任务之后都有一个检查点 -->
+<task type="auto">创建架构</task>
+<task type="checkpoint:human-verify">检查架构</task>
+<task type="auto">创建 API 路由</task>
+<task type="checkpoint:human-verify">检查 API</task>
+<task type="auto">创建 UI 表单</task>
+<task type="checkpoint:human-verify">检查表单</task>
+
+<!-- 正确：结束时一个检查点 -->
+<task type="auto">创建架构</task>
+<task type="auto">创建 API 路由</task>
+<task type="auto">创建 UI 表单</task>
+
+<task type="checkpoint:human-verify">
+  <what-built>完整的身份验证流 (架构 + API + UI)</what-built>
+  <how-to-verify>测试完整流程：注册、登录、访问受保护页面</how-to-verify>
+  <resume-signal>输入 "approved"</resume-signal>
+</task>
+```
+
+### ❌ 错误：模糊的验证 / ✅ 正确：具体的步骤
+
+```xml
+<!-- 错误 -->
+<task type="checkpoint:human-verify">
+  <what-built>仪表盘</what-built>
+  <how-to-verify>检查其是否工作</how-to-verify>
+</task>
+
+<!-- 正确 -->
+<task type="checkpoint:human-verify">
+  <what-built>响应式仪表盘 —— 开发服务器运行在 http://localhost:3000</what-built>
+  <how-to-verify>
+    访问 http://localhost:3000/dashboard 并验证：
+    1. 桌面端 (>1024px)：侧边栏可见，内容区域填充剩余空间
+    2. 平板端 (768px)：侧边栏折叠为图标
+    3. 移动端 (375px)：侧边栏隐藏，页眉中出现汉堡菜单
+    4. 任何尺寸下均无水平滚动
+  </how-to-verify>
+  <resume-signal>输入 "approved" 或描述布局问题</resume-signal>
+</task>
+```
+
+### ❌ 错误：要求用户运行 CLI 命令
+
+```xml
+<task type="checkpoint:human-action">
+  <action>运行数据库迁移</action>
+  <instructions>运行：npx prisma migrate deploy && npx prisma db seed</instructions>
+</task>
+```
+
+**为什么错误：** Claude 可以运行这些命令。用户永远不应该执行 CLI 命令。
+
+### ❌ 错误：要求用户在服务之间复制值
+
+```xml
+<task type="checkpoint:human-action">
+  <action>在 Stripe 中配置 Webhook URL</action>
+  <instructions>复制部署 URL → Stripe 控制面板 → Webhooks → Add endpoint → 复制密钥 → 添加到 .env</instructions>
+</task>
+```
+
+**为什么错误：** Stripe 提供 API。Claude 应该通过 API 创建 Webhook 并直接写入 .env。
+
+</anti_patterns>
+
+<summary>
+
+检查点将人工参与的验证和决策环节正式化，而不是手动工作。
+
+**黄金法则：** 如果 Claude **能**自动化，Claude **必须**自动化。
+
+**检查点优先级：**
+1. **checkpoint:human-verify** (90%) —— Claude 自动化了一切，人工确认视觉/功能正确性。
+2. **checkpoint:decision** (9%) —— 人工做出架构/技术选型。
+3. **checkpoint:human-action** (1%) —— 确实无法避免的、且无 API/CLI 支持的手动步骤。
+
+**何时不使用检查点：**
+- Claude 可以通过程序化方式验证的事项（测试、构建）。
+- 文件操作（Claude 可以读取文件）。
+- 代码正确性（测试和静态分析）。
+- 任何可以通过 CLI/API 自动化的事项。
+</summary>
